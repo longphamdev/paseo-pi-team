@@ -194,6 +194,20 @@ export function callsAgentBrowserCli(command: string): boolean {
 	);
 }
 
+/**
+ * Vision MCP image-read tool. Unlike agent-browser, the vision MCP is allowed
+ * for EVERY role without a brief grant — reading/analyzing images is normal
+ * work, not orchestration or browser automation. The name must END in the
+ * read_image segment: a generic "vision_" prefix alone does NOT open
+ * arbitrary tools.
+ */
+const VISION_MCP_SERVER = "vision";
+const VISION_MCP_TARGETS: string[] = ["read_image"];
+
+export function isVisionMcpTarget(name: string): boolean {
+	return /(^|[_:])read_image$/.test(name.toLowerCase());
+}
+
 /** Monitoring-only Paseo tools — the supervisor's default surface. */
 const SUPERVISOR_MONITORING_TARGETS: string[] = [
 	"list_agents",
@@ -270,11 +284,17 @@ export function policyFor(role: TeamRole, peerMode: PeerMode): Policy {
 				deny: ["write", "edit", "mcp_script", ...ALL_PASEO_TOOLS],
 			};
 		case "peer":
+			// mcp is always available so the vision MCP (read_image) works for
+			// every role; agent-browser targets stay gated by the current brief
+			// (peerMcpBlockReason). mcp_script stays denied for peers.
 			return peerMode === "write"
-				? { allow: [...PI_WRITE], deny: [...ALL_PASEO_TOOLS, ...MCP_TOOLS] }
+				? {
+						allow: [...PI_WRITE, "mcp"],
+						deny: [...ALL_PASEO_TOOLS, "mcp_script"],
+					}
 				: {
-						allow: [...PI_READ_ONLY],
-						deny: [...ALL_PASEO_TOOLS, ...MCP_TOOLS, "write", "edit"],
+						allow: [...PI_READ_ONLY, "mcp"],
+						deny: [...ALL_PASEO_TOOLS, "mcp_script", "write", "edit"],
 					};
 	}
 }
@@ -316,7 +336,7 @@ export function denyReason(
 	toolName: string,
 ): string {
 	if (role === "peer" && (toolName === "mcp" || toolName === "mcp_script")) {
-		return "Peer cannot use the MCP proxy unless the current V3 brief grants BROWSER_MCP_AUTHORITY: allowed. Paseo orchestration MCP remains forbidden. Report a DEPENDENCY_REQUEST to the Lead instead.";
+		return "Peer MCP is limited to the vision MCP (read_image, always allowed) plus agent-browser targets when the current V3 brief grants BROWSER_MCP_AUTHORITY: allowed. Paseo orchestration MCP remains forbidden. Report a DEPENDENCY_REQUEST to the Lead instead.";
 	}
 	if (role === "peer" && matchesPaseoToolName(toolName, ALL_PASEO_TOOLS)) {
 		return "Peer cannot orchestrate agents or manage workspaces. Report a DEPENDENCY_REQUEST to the Lead instead.";
@@ -540,14 +560,11 @@ export function peerMcpBlockReason(
 	input: unknown,
 	brief: ParsedTaskBrief | null,
 ): string | null {
-	if (!browserMcpAllowed(brief)) {
-		return "Peer browser MCP is not authorized for this turn. Lead must send a V3 brief with BROWSER_MCP_AUTHORITY: allowed.";
-	}
 	const classification = classifyMcpInput(input);
 	if (classification.kind === "unknown") {
 		return (
 			classification.reason ??
-			"browser MCP call could not be classified — blocked fail-closed"
+			"vision/browser MCP call could not be classified — blocked fail-closed"
 		);
 	}
 	if (classification.kind === "meta") {
@@ -556,27 +573,39 @@ export function peerMcpBlockReason(
 			const selected = [rec.connect, rec.server].filter(
 				(value): value is string => typeof value === "string",
 			);
-			return selected.every(isAgentBrowserServer)
+			return selected.every(
+				(value) => isAgentBrowserServer(value) || value === VISION_MCP_SERVER,
+			)
 				? null
-				: "Peer may connect/query only the agent-browser MCP server; other MCP servers are denied.";
+				: "Peer may connect/query only the vision (read_image) or agent-browser MCP server; other MCP servers are denied.";
 		}
 		if (typeof rec.search === "string") {
-			return isAgentBrowserServer(rec.server)
+			return isAgentBrowserServer(rec.server) || rec.server === VISION_MCP_SERVER
 				? null
-				: "Peer MCP search must set server=agent-browser; broad discovery is denied.";
+				: "Peer MCP search must set server=vision or server=agent-browser; broad discovery is denied.";
 		}
 		if (typeof rec.describe === "string") {
-			return (rec.server === undefined || isAgentBrowserServer(rec.server)) &&
-				isAgentBrowserMcpTarget(rec.describe)
+			const targetOk =
+				isAgentBrowserMcpTarget(rec.describe) || isVisionMcpTarget(rec.describe);
+			const serverOk =
+				rec.server === undefined ||
+				isAgentBrowserServer(rec.server) ||
+				rec.server === VISION_MCP_SERVER;
+			return targetOk && serverOk
 				? null
-				: "Peer may describe only an agent-browser MCP target.";
+				: "Peer may describe only a vision (read_image) or agent-browser MCP target.";
 		}
-		return "Peer browser MCP meta operation is not allowed; use an agent-browser target explicitly.";
+		return "Peer vision/browser MCP meta operation is not allowed; use an explicit target.";
 	}
 	const target = classification.target ?? "";
+	// Vision MCP image reading is normal work — allowed without a brief grant.
+	if (isVisionMcpTarget(target)) return null;
+	if (!browserMcpAllowed(brief)) {
+		return "Peer browser MCP is not authorized for this turn. Lead must send a V3 brief with BROWSER_MCP_AUTHORITY: allowed.";
+	}
 	return isAgentBrowserMcpTarget(target)
 		? null
-		: `"${target}" is not an agent-browser MCP target; Paseo and unrelated MCP servers remain forbidden for Peers.`;
+		: `"${target}" is not a vision or agent-browser MCP target; Paseo and unrelated MCP servers remain forbidden for Peers.`;
 }
 
 export function mcpBlockReason(role: TeamRole, input: unknown): string | null {
@@ -589,10 +618,13 @@ export function mcpBlockReason(role: TeamRole, input: unknown): string | null {
 		);
 	}
 	const target = classification.target ?? "";
+	// Vision MCP image reading (read_image) is allowed for EVERY role —
+	// analyzing images is normal work, not orchestration.
+	if (isVisionMcpTarget(target)) return null;
 	if (role === "lead" && isAgentBrowserMcpTarget(target)) return null;
 	if (!matchesPaseoToolName(target, mcpAllowedTargets(role))) {
 		if (role === "supervisor") {
-			return `Supervisor may only call monitoring tools through MCP (list_agents, get_agent_status, get_agent_activity, send_agent_prompt) plus a gated lead-recovery create_agent. "${target}" is blocked — send an observation to the Lead instead.`;
+			return `Supervisor may only call monitoring tools through MCP (list_agents, get_agent_status, get_agent_activity, send_agent_prompt), a gated lead-recovery create_agent, and the vision MCP (read_image). "${target}" is blocked — send an observation to the Lead instead.`;
 		}
 		return `"${target}" is not in the ${role} MCP allowlist (discovery, workspace, monitoring, orchestration, permissions).`;
 	}
@@ -640,8 +672,8 @@ export function mcpScriptBlockReason(
 	// already hard-denied for the supervisor at the policy level anyway.
 	const allowed =
 		role === "supervisor"
-			? SUPERVISOR_MCP_SCRIPT_TARGETS
-			: mcpAllowedTargets(role);
+			? [...SUPERVISOR_MCP_SCRIPT_TARGETS, ...VISION_MCP_TARGETS]
+			: [...mcpAllowedTargets(role), ...VISION_MCP_TARGETS];
 	for (const _match of code.matchAll(MCP_SCRIPT_DYNAMIC_CALL_RE)) {
 		return `mcp_script invokes an MCP tool through a non-literal target (variable, expression or computed key) — the ${role} allowlist cannot verify it, so the call is blocked fail-closed. Use a literal tool name: tools.call("<allowed_tool>", ...) or tools.<allowed_tool>().`;
 	}

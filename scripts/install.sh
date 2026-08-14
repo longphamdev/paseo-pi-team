@@ -62,6 +62,17 @@ if ! node "$ROLE_PACK_ROOT/scripts/browser-setup.mjs" "${BROWSER_SETUP_ARGS[@]}"
   echo "[paseo-team] agent-browser setup failed" >&2
   exit 1
 fi
+# The vision MCP server is a stdio MCP server bundled in mcps/vision_mcp. The
+# helper copies it into the pi agent dir and merges only the missing vision
+# entry in Pi's MCP config (idempotent, preserves every other server).
+VISION_SETUP_ARGS=(--install)
+if [[ -z "${PI_CODING_AGENT_DIR:-}" ]]; then
+  VISION_SETUP_ARGS+=(--pi-home "$PI_HOME")
+fi
+if ! node "$ROLE_PACK_ROOT/scripts/vision-setup.mjs" "${VISION_SETUP_ARGS[@]}"; then
+  echo "[paseo-team] vision MCP setup failed" >&2
+  exit 1
+fi
 
 echo ""
 echo "[paseo-team] Installed:"
@@ -69,6 +80,7 @@ echo "  extension -> $EXT_DIR/paseo-team-policy.ts"
 echo "  prompts   -> $PROMPT_DIR"
 echo "  lead skill -> $SKILL_DIR"
 echo "  OCR skill  -> $OCR_SKILL_DIR"
+echo "  vision MCP -> $AGENT_DIR/mcps/vision_mcp"
 echo "  support   -> $TEAM_SCRIPTS_DIR"
 export PASEO_TEAM_SCRIPTS_DIR="$TEAM_SCRIPTS_DIR"
 echo "  support env -> PASEO_TEAM_SCRIPTS_DIR=$TEAM_SCRIPTS_DIR (current process)"
@@ -76,7 +88,8 @@ echo "  support default -> \${PI_CODING_AGENT_DIR:-\$HOME/.pi/agent}/extensions/
 echo "  env override is optional; no shell profile mutation is required"
 echo ""
 echo "Next steps:"
-echo "  1. The installer checked/installed OCR (capability-probed; >= v1.8.10 kept as-is, pinned v1.9.2 when repairing), agent-browser CLI, Chrome runtime, skill and Pi MCP config."
+echo "  1. The installer checked/installed OCR (capability-probed; >= v1.8.10 kept as-is, pinned v1.9.2 when repairing), agent-browser CLI, Chrome runtime, skill, vision MCP server and Pi MCP config."
+echo "     Vision MCP: server at $AGENT_DIR/mcps/vision_mcp; set VISION_API_KEY (plus optional VISION_API_BASE/VISION_MODEL) in pi's shell environment so read_image can reach the vision model."
 echo "  2. Verify OCR if needed: command -v ocr; ocr version"
 echo "  3. Install the MCP adapter (PINNED version — Paseo tools depend on it):"
 echo "     pi install npm:pi-mcp-adapter@2.19.0"

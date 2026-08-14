@@ -27,6 +27,8 @@ paseo-pi-team/
 │   └── peer.md                     # execution Peer (bounded worker)
 ├── extensions/
 │   └── paseo-team-policy.ts        # inject prompt + áp tool policy theo role
+├── mcps/
+│   └── vision_mcp/                 # vision MCP server (src + committed dist) — đọc ảnh bằng model vision
 ├── skills/
 │   ├── paseo-team-lead/
 │   │   └── SKILL.md                # workflow orchestration + routing cycle của Lead
@@ -47,6 +49,7 @@ paseo-pi-team/
 │   ├── watchdog.mjs                 # observation-only running-agent watchdog
 │   ├── ocr-review.mjs               # deterministic OCR exact-SHA preflight manifest
 │   ├── team-scripts-path.mjs        # durable support-script path resolver
+│   ├── vision-setup.mjs             # install vision MCP server + merge entry
 │   └── preflight.mjs                # host readiness check (--json, --strict, --host-id)
 ├── test/
 │   ├── policy.test.mts             # policy + lifecycle regression
@@ -56,7 +59,9 @@ paseo-pi-team/
 │   ├── team-communication.test.mjs # parent-scoped Peer → Lead contract
 │   ├── watchdog.test.mjs            # stale-agent classification
 │   ├── ocr-review.test.mjs          # OCR delegation preflight contract
-│   └── ocr-integrity.test.mjs       # skill/reference/authority integrity
+│   ├── ocr-integrity.test.mjs       # skill/reference/authority integrity
+│   ├── vision-setup.test.mjs        # vision MCP merge/validator/config shape
+│   └── vision-integrity.test.mjs    # policy/prompt/installer vision integrity
 └── docs/
     ├── demonthorn-agent-orchestration-deep-dive.md   # thiết kế gốc
     ├── model-routing.md            # 4 lớp model routing, verified commands
@@ -85,7 +90,8 @@ force-push (mọi spelling: `-f`, `-uf`, `-fu`, `--force*`, refspec `+`) và mer
 của Peer luôn bị chặn. `BROWSER_MCP_AUTHORITY` là grant theo current turn:
 chỉ các target có prefix agent-browser và `connect/search` được scope vào
 server `agent-browser`; agent-browser CLI qua bash luôn bị chặn. Paseo MCP và
-MCP khác luôn bị chặn.
+MCP khác luôn bị chặn — ngoại lệ duy nhất là vision `read_image` (mọi role
+được phép, không cần grant; xem mục "Vision MCP" bên dưới).
 
 ## Liên lạc và watchdog
 
@@ -150,7 +156,9 @@ Script copy:
 - `prompts/*.md` → `~/.pi/agent/extensions/prompts/`
 - `skills/paseo-team-lead/` → `~/.pi/agent/skills/paseo-team-lead/`
 - `agent-browser` CLI + Chrome runtime (nếu thiếu), bundled skill → `~/.pi/agent/skills/agent-browser/`
-- MCP entry `agent-browser: { command: "agent-browser", args: ["mcp"] }` → `~/.pi/agent/mcp.json` nếu chưa có ở các config chuẩn
+- MCP entry `agent-browser: { command: "agent-browser", args: ["--cdp", "9222", "mcp"] }` → `~/.pi/agent/mcp.json` nếu chưa có ở các config chuẩn
+- `mcps/vision_mcp/` → `~/.pi/agent/mcps/vision_mcp/` (vision MCP server)
+- MCP entry `vision` → `~/.pi/agent/mcp.json` nếu chưa có entry hợp lệ
 
 ### agent-browser browser MCP
 
@@ -174,6 +182,30 @@ search/connect server `agent-browser` và gọi target prefix `agent_browser_` /
 `agent-browser_` (cùng các prefix chuẩn hóa tương thích), không được dùng Paseo
 MCP hoặc server khác. `node scripts/preflight.mjs --json` có các check CLI,
 Chrome/runtime, skill và MCP entry.
+
+### Vision MCP (đọc ảnh)
+
+Installer copy server `mcps/vision_mcp/` → `~/.pi/agent/mcps/vision_mcp/`
+(rebuild `dist/index.js` chỉ khi thiếu) và merge entry `vision` vào
+`~/.pi/agent/mcp.json` nếu chưa có entry hợp lệ; entry hợp lệ của user luôn
+được giữ nguyên, không ghi đè. Server gọi thẳng model vision OpenAI-compatible
+(dạng chat/completions), không đi qua pi:
+
+```text
+VISION_API_BASE  # base URL; fallback OPENAI_API_BASE / OPENAI_BASE_URL; mặc định https://new-api.longphamthien.us/v1
+VISION_API_KEY   # API key; fallback OPENAI_API_KEY / NEW_API_API_KEY
+VISION_MODEL     # model id; mặc định "vision" (Mimo V2.5)
+```
+
+Cả 3 role (supervisor/lead/peer) đều được gọi tool `read_image` qua `mcp`:
+
+```text
+mcp({ tool: "read_image", args: { path: "<đường dẫn tuyệt đối tới ảnh>", prompt: "<câu hỏi / điều cần phân tích>" } })
+```
+
+Peer không cần grant trong brief; không dùng bash để đọc file ảnh thay cho
+vision MCP. `node scripts/preflight.mjs --json` kiểm tra server copy / entry
+hợp lệ và cảnh báo `vision-env` khi thiếu key.
 
 ### Paseo inspect contract test
 
@@ -279,7 +311,8 @@ Kiểm: node/git/paseo/pi + version pin, daemon, adapter (pin), extension,
 role prompts, 3 role providers, routing config (single-host + cluster
 contract), từng route so với inventory thật, provider status, model segment
 rỗng, `thinkingLevelMap` per-model của pi (level `null` = bị clamp),
-endpoint env, trạng thái repo (writer host phải sạch trong strict mode).
+endpoint env, vision MCP (server copy + entry hợp lệ + env key),
+trạng thái repo (writer host phải sạch trong strict mode).
 Không in secret.
 
 ## Debug commands

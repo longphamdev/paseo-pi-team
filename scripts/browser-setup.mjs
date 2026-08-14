@@ -22,30 +22,69 @@ import { dirname, join, resolve } from "node:path";
 
 export const AGENT_BROWSER_PACKAGE = "agent-browser";
 export const AGENT_BROWSER_MCP_SERVER = "agent-browser";
+// Default CDP port for attaching to an already-running Chrome/Chromium (e.g.
+// a browser container on the host network) instead of launching a fresh one.
+export const AGENT_BROWSER_CDP_PORT_DEFAULT = 9222;
 const CONFIG_LOCK_RETRIES = 50;
 const CONFIG_LOCK_WAIT_MS = 100;
 const CONFIG_LOCK_STALE_MS = 5 * 60 * 1000;
 
+/**
+ * CDP port the agent-browser MCP server attaches to. Defaults to 9222;
+ * override with PASEO_TEAM_BROWSER_CDP_PORT.
+ */
+export function browserCdpPort() {
+	const raw = process.env.PASEO_TEAM_BROWSER_CDP_PORT?.trim();
+	if (!raw) return AGENT_BROWSER_CDP_PORT_DEFAULT;
+	const port = Number(raw);
+	if (!Number.isInteger(port) || port < 1 || port > 65535) {
+		throw new Error(
+			`PASEO_TEAM_BROWSER_CDP_PORT must be an integer 1-65535, got "${raw}"`,
+		);
+	}
+	return port;
+}
+
 export function browserMcpConfig() {
 	return {
 		command: "agent-browser",
-		args: ["mcp"],
+		args: ["--cdp", String(browserCdpPort()), "mcp"],
 		lifecycle: "lazy",
 	};
 }
 
 export function isValidAgentBrowserMcpServer(server) {
-	return Boolean(
-		server &&
-		typeof server === "object" &&
-		!Array.isArray(server) &&
-		typeof server.command === "string" &&
-		server.command.trim() === "agent-browser" &&
-		Array.isArray(server.args) &&
-		server.args[0] === "mcp" &&
-		server.args.every((arg) => typeof arg === "string") &&
-		(server.disabled === undefined || typeof server.disabled === "boolean"),
-	);
+	if (
+		!server ||
+		typeof server !== "object" ||
+		Array.isArray(server) ||
+		typeof server.command !== "string" ||
+		server.command.trim() !== "agent-browser" ||
+		!Array.isArray(server.args) ||
+		server.args.length === 0 ||
+		!server.args.every((arg) => typeof arg === "string")
+	) {
+		return false;
+	}
+	// Accept the installer form ["--cdp", "<port>", "mcp", ...] and the plain
+	// ["mcp", ...] form (with optional trailing flags) so an existing valid
+	// user-modified config is never overwritten.
+	const args = server.args;
+	let index = 0;
+	if (args[0] === "--cdp") {
+		if (args.length < 3) return false;
+		const port = Number(args[1]);
+		if (!Number.isInteger(port) || port < 1 || port > 65535) return false;
+		index = 2;
+	}
+	if (args[index] !== "mcp") return false;
+	if (server.disabled !== undefined && typeof server.disabled !== "boolean") {
+		return false;
+	}
+	if (server.lifecycle !== undefined && typeof server.lifecycle !== "string") {
+		return false;
+	}
+	return true;
 }
 
 /** Add agent-browser only when the user has not configured that server yet. */

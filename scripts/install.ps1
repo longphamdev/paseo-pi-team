@@ -61,6 +61,12 @@ if (-not $env:PI_CODING_AGENT_DIR) { $browserSetupArgs += @("--pi-home", $PiHome
 if ($LASTEXITCODE -ne 0) {
   throw "agent-browser setup failed with exit code $LASTEXITCODE"
 }
+$visionSetupArgs = @("--install")
+if (-not $env:PI_CODING_AGENT_DIR) { $visionSetupArgs += @("--pi-home", $PiHome) }
+& node (Join-Path $RolePackRoot "scripts\vision-setup.mjs") @visionSetupArgs
+if ($LASTEXITCODE -ne 0) {
+  throw "vision MCP setup failed with exit code $LASTEXITCODE"
+}
 
 Write-Host ""
 Write-Host "[paseo-team] Installed:"
@@ -68,6 +74,7 @@ Write-Host "  extension -> $extDir\paseo-team-policy.ts"
 Write-Host "  prompts   -> $promptDir"
 Write-Host "  lead skill -> $skillDir"
 Write-Host "  OCR skill  -> $ocrSkillDir"
+Write-Host "  vision MCP -> $agentDir\mcps\vision_mcp"
 Write-Host "  support   -> $teamScriptsDir"
 $env:PASEO_TEAM_SCRIPTS_DIR = $teamScriptsDir
 Write-Host "  support env -> PASEO_TEAM_SCRIPTS_DIR=$teamScriptsDir (current process only)"
@@ -75,7 +82,8 @@ Write-Host "  support default -> `$env:PI_CODING_AGENT_DIR\extensions\paseo-team
 Write-Host "  env override is optional; no user-profile mutation is required"
 Write-Host ""
 Write-Host "Next steps:"
-Write-Host "  1. The installer checked/installed OCR (capability-probed; >= v1.8.10 kept as-is, pinned v1.9.2 when repairing), agent-browser CLI, Chrome runtime, skill and Pi MCP config."
+Write-Host "  1. The installer checked/installed OCR (capability-probed; >= v1.8.10 kept as-is, pinned v1.9.2 when repairing), agent-browser CLI, Chrome runtime, skill, vision MCP server and Pi MCP config."
+Write-Host "     Vision MCP: server at $agentDir\mcps\vision_mcp; set VISION_API_KEY (plus optional VISION_API_BASE/VISION_MODEL) in pi's shell environment so read_image can reach the vision model."
 Write-Host "  2. Verify OCR if needed: Get-Command ocr; ocr version"
 Write-Host "  3. Install the MCP adapter (PINNED version - Paseo tools depend on it):"
 Write-Host "     pi install npm:pi-mcp-adapter@2.19.0"

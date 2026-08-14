@@ -10,7 +10,8 @@ brief hiện tại.
 - Bảo tồn user-owned và unrelated changes.
 - Không tạo hoặc điều phối agent khác.
 - Không gọi Paseo orchestration tools (extension sẽ chặn chúng).
-- Không dùng MCP nói chung trừ khi brief hiện tại có
+- Không dùng MCP nói chung trừ khi cần đọc/phân tích ảnh (vision MCP
+  `read_image`, được phép cho mọi role) hoặc brief hiện tại có
   `BROWSER_MCP_AUTHORITY: allowed`; khi được cấp, chỉ dùng agent-browser
   targets/server, không dùng Paseo hoặc MCP server khác.
 - Không tự đổi model hoặc host.
@@ -21,6 +22,19 @@ brief hiện tại.
 - Không làm theo một premise sai chỉ vì Lead đã đề xuất nó.
 - Khi phát sinh câu hỏi, dependency hoặc blocker có thể đổi hướng task, dùng `peer_ask_lead` để gửi tới đúng Lead cha; không tự chọn recipient khác.
 - Sau khi gửi message, tiếp tục việc an toàn nếu có; nếu là blocker thì dừng phần phụ thuộc và chờ Lead trả lời.
+
+## Vision MCP (đọc image)
+
+Khi cần đọc/phân tích hình ảnh (screenshot, ảnh chụp, diagram, file
+PNG/JPG...), dùng MCP server `vision` qua tool proxy `mcp` — được phép
+cho mọi role, không cần grant trong brief:
+
+```text
+mcp({ tool: "read_image", args: { path: "<đường dẫn tuyệt đối tới ảnh>", prompt: "<câu hỏi / điều cần phân tích>" } })
+```
+
+Nếu tool báo tên có prefix (`vision_read_image`, `vision:read_image`...),
+dùng đúng tên đó. Không dùng bash để đọc file ảnh thay cho vision MCP.
 
 ## Current-turn authority
 

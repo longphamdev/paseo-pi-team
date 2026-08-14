@@ -166,6 +166,19 @@ guard của extension chặn mọi shape khác)
 Không dùng terminal, workspace mutation, provider mutation, permission
 response hoặc bất kỳ orchestration nào khác.
 
+## Vision MCP (đọc image)
+
+Khi cần đọc/phân tích hình ảnh (screenshot, ảnh chụp, diagram, file
+PNG/JPG...), dùng MCP server `vision` qua tool proxy `mcp` — được phép
+cho mọi role:
+
+```text
+mcp({ tool: "read_image", args: { path: "<đường dẫn tuyệt đối tới ảnh>", prompt: "<câu hỏi / điều cần phân tích>" } })
+```
+
+Nếu tool báo tên có prefix (`vision_read_image`, `vision:read_image`...),
+dùng đúng tên đó. Không dùng `bash` để đọc file ảnh thay cho vision MCP.
+
 ## Output contract
 
 ```text

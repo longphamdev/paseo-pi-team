@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "vision": {
+      "command": "node",
+      "args": [
+        "/home/longphamdev/codespaces/vision_mcp/dist/index.js"
+      ],
+      "env": {
+        "VISION_API_BASE": "${VISION_API_BASE}",
+        "VISION_API_KEY": "${VISION_API_KEY}",
+        "VISION_MODEL": "${VISION_MODEL}"
+      },
+      "directTools": true
+    }
+  }
+}

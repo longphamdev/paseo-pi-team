@@ -51,14 +51,57 @@ import {
 	);
 }
 
-assert.equal(
-	mergeAgentBrowserMcpConfig({}).mcpServers[AGENT_BROWSER_MCP_SERVER].args[0],
-	"mcp",
+assert.deepEqual(
+	mergeAgentBrowserMcpConfig({}).mcpServers[AGENT_BROWSER_MCP_SERVER].args,
+	["--cdp", "9222", "mcp"],
+	"installer default attaches to CDP 9222",
+);
+assert.deepEqual(
+	mergeAgentBrowserMcpConfig({}).mcpServers[AGENT_BROWSER_MCP_SERVER].lifecycle,
+	"lazy",
 );
 assert.equal(isValidAgentBrowserMcpServer(browserMcpConfig()), true);
 assert.equal(isValidAgentBrowserMcpServer("enabled"), false);
 assert.equal(isValidAgentBrowserMcpServer({ command: "agent-browser", args: ["open"] }), false);
 assert.equal(isValidAgentBrowserMcpServer({ command: "agent-browser", args: ["mcp"] }), true);
+assert.equal(
+	isValidAgentBrowserMcpServer({
+		command: "agent-browser",
+		args: ["--cdp", "9222", "mcp"],
+		lifecycle: "lazy",
+	}),
+	true,
+	"CDP-attach form with lifecycle lazy is valid",
+);
+assert.equal(
+	isValidAgentBrowserMcpServer({
+		command: "agent-browser",
+		args: ["--cdp", "notaport", "mcp"],
+	}),
+	false,
+	"non-numeric CDP port is invalid",
+);
+assert.equal(
+	isValidAgentBrowserMcpServer({ command: "agent-browser", args: ["--cdp"] }),
+	false,
+	"truncated --cdp args are invalid",
+);
+assert.equal(
+	isValidAgentBrowserMcpServer({
+		command: "agent-browser",
+		args: ["mcp"],
+		lifecycle: 123,
+	}),
+	false,
+	"non-string lifecycle is invalid",
+);
+{
+	const prev = process.env.PASEO_TEAM_BROWSER_CDP_PORT;
+	process.env.PASEO_TEAM_BROWSER_CDP_PORT = "9333";
+	assert.deepEqual(browserMcpConfig().args, ["--cdp", "9333", "mcp"]);
+	if (prev === undefined) delete process.env.PASEO_TEAM_BROWSER_CDP_PORT;
+	else process.env.PASEO_TEAM_BROWSER_CDP_PORT = prev;
+}
 assert.ok(
 	mcpConfigCandidates("C:/pi").some((path) =>
 		/agent[\\/]mcp\.json$/.test(path),

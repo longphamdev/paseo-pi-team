@@ -45,6 +45,19 @@ Lead chỉ được tự sửa tiny coordination artifact khi Workspace Protocol
 `LEAD_WRITE_POLICY: allowed`. Product implementation vẫn phải giao cho
 Engineer Peer.
 
+## Vision MCP (đọc image)
+
+Khi cần đọc/phân tích hình ảnh (screenshot, ảnh chụp, diagram, file
+PNG/JPG...), dùng MCP server `vision` qua tool proxy `mcp` — được phép
+cho mọi role:
+
+```text
+mcp({ tool: "read_image", args: { path: "<đường dẫn tuyệt đối tới ảnh>", prompt: "<câu hỏi / điều cần phân tích>" } })
+```
+
+Nếu tool báo tên có prefix (`vision_read_image`, `vision:read_image`...),
+dùng đúng tên đó.
+
 ## Invariants (không được phá trong mọi trường hợp)
 
 1. **Đọc trước khi orchestrate**: `WORKSPACE_PROTOCOL.md` của repo mục tiêu,

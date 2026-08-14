@@ -22,6 +22,12 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { inspectAgentBrowser } from "./browser-setup.mjs";
 import {
+	VISION_MCP_SERVER,
+	isValidVisionMcpServer,
+	mcpConfigCandidates,
+	visionInstallDir,
+} from "./vision-setup.mjs";
+import {
 	RoutingError,
 	buildProviderInventory,
 	defaultClusterRoutingPath,
@@ -271,11 +277,47 @@ let daemonUp = false;
 			"agent-browser-mcp",
 			`${browser.configPath} contains a disabled agent-browser server`,
 		);
-	else
+else
+	fail(
+		"agent-browser-mcp",
+		`${browser.configPath} has no agent-browser server entry`,
+	);
+}
+
+// --- vision MCP ---------------------------------------------------------------
+
+{
+	const visionEntry = join(visionInstallDir(), "dist", "index.js");
+	const visionConfigPath = mcpConfigCandidates().find((path) => {
+		try {
+			const parsed = JSON.parse(readFileSync(path, "utf8"));
+			return isValidVisionMcpServer(parsed?.mcpServers?.[VISION_MCP_SERVER]);
+		} catch {
+			return false;
+		}
+	});
+	if (visionConfigPath || existsSync(visionEntry)) {
+		pass("vision-mcp", visionConfigPath ?? visionEntry);
+	} else {
 		fail(
-			"agent-browser-mcp",
-			`${browser.configPath} has no agent-browser server entry`,
+			"vision-mcp",
+			"no vision MCP server found — run scripts/install.{sh,ps1} to copy mcps/vision_mcp and register the vision entry (read_image will be blocked without it)",
 		);
+	}
+	// The server resolves keys through ${VISION_API_KEY} expansion in mcp.json
+	// from pi's shell; a missing key makes read_image fail with a clear error.
+	if (
+		!process.env.VISION_API_KEY &&
+		!process.env.OPENAI_API_KEY &&
+		!process.env.NEW_API_API_KEY
+	) {
+		warn(
+			"vision-env",
+			"VISION_API_KEY (or OPENAI_API_KEY/NEW_API_API_KEY) not set in this shell — read_image will return 'No API key configured'",
+		);
+	} else {
+		pass("vision-env", "vision API key env present (value not printed)");
+	}
 }
 
 // --- role-pack installation ---------------------------------------------------
