@@ -155,6 +155,7 @@ Script copy:
 - `extensions/paseo-team-policy.ts` → `~/.pi/agent/extensions/`
 - `prompts/*.md` → `~/.pi/agent/extensions/prompts/`
 - `skills/paseo-team-lead/` → `~/.pi/agent/skills/paseo-team-lead/`
+- `config/paseo.config.json` → `~/.paseo/config.json` (override — Pi providers + MCP injection)
 - `agent-browser` CLI + Chrome runtime (nếu thiếu), bundled skill → `~/.pi/agent/skills/agent-browser/`
 - MCP entry `agent-browser: { command: "agent-browser", args: ["--cdp", "9222", "mcp"] }` → `~/.pi/agent/mcp.json` nếu chưa có ở các config chuẩn
 - `mcps/vision_mcp/` → `~/.pi/agent/mcps/vision_mcp/` (vision MCP server)
@@ -242,13 +243,15 @@ Lead/Supervisor dùng `mcp` và chặn Peer dùng nó.
 
 ### Cấu hình Paseo
 
-Script **không tự merge** `~/.paseo/config.json` — làm thủ công để kiểm soát:
+Installer **override** `~/.paseo/config.json` từ `config/paseo.config.json` mỗi
+lần chạy — file này là canonical config: bật provider `pi`, inject MCP vào
+`pi-supervisor`/`pi-lead`/`pi-peer` (`daemon.mcp.injectIntoAgents: true`),
+kèm terminal profiles, agentProfiles, cors và relay. Mọi chỉnh sửa thủ công
+vào `~/.paseo/config.json` sẽ bị ghi đè ở lần install sau; sửa vào
+`config/paseo.config.json` trong repo nếu cần giữ thay đổi.
 
-1. Merge `config/paseo.providers.example.json` vào `~/.paseo/config.json`
-   (`agents.providers.pi-*` + `daemon.mcp.injectIntoAgents: true` — bật để agent
-   nhận Paseo orchestration tools).
-2. Restart daemon Paseo (kills mọi agent đang chạy — chỉ làm khi sẵn sàng).
-3. `/reload` trong pi để nạp extension mới.
+1. Restart daemon Paseo (kills mọi agent đang chạy — chỉ làm khi sẵn sàng).
+2. `/reload` trong pi để nạp extension mới.
 
 Extension không có `PASEO_PI_ROLE` → passive (không inject, không giới hạn tool),
 an toàn khi cài global trên máy dùng pi thường.
