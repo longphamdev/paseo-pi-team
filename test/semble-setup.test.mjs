@@ -113,10 +113,11 @@ assert.ok(
 	mcpConfigCandidates("/home/pi").some((path) => /agent[\\/]mcp\.json$/.test(path)),
 );
 
-// Integrity: install.sh wires the semble setup script + package constant.
+// Integrity: installers wire the semble setup script + package constant.
 const root = join(import.meta.dirname, "..");
 const read = (path) => readFileSync(join(root, path), "utf8");
 const installSh = read("scripts/install.sh");
+const installPs1 = read("scripts/install.ps1");
 const peerPrompt = read("prompts/peer.md");
 const leadPrompt = read("prompts/lead.md");
 const supervisorPrompt = read("prompts/supervisor.md");
@@ -125,6 +126,9 @@ const sembleSetup = read("scripts/semble-setup.mjs");
 assert.ok(installSh.includes("semble-setup.mjs"), "install.sh calls semble-setup.mjs");
 assert.ok(installSh.includes("uv tool install semble"), "install.sh documents uv tool install semble");
 assert.ok(installSh.includes(PI_MCP_EXTENSION_PACKAGE), "install.sh documents the Pi MCP extension package");
+assert.ok(installPs1.includes("semble-setup.mjs"), "install.ps1 calls semble-setup.mjs");
+assert.ok(installPs1.includes("uv tool install semble"), "install.ps1 documents uv tool install semble");
+assert.ok(installPs1.includes(PI_MCP_EXTENSION_PACKAGE), "install.ps1 documents the Pi MCP extension package");
 assert.ok(sembleSetup.includes('"uvx"'), "semble-setup.mjs uses uvx");
 assert.ok(sembleSetup.includes('"semble[mcp]"'), "semble-setup.mjs pins semble[mcp]");
 

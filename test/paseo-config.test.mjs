@@ -8,6 +8,7 @@ import { join } from "node:path";
 const root = join(import.meta.dirname, "..");
 const read = (path) => readFileSync(join(root, path), "utf8");
 const installSh = read("scripts/install.sh");
+const installPs1 = read("scripts/install.ps1");
 const configText = read("config/paseo.config.json");
 
 // install.sh: copies the canonical config into ~/.paseo/config.json.
@@ -16,6 +17,14 @@ assert.ok(installSh.includes('"$HOME/.paseo/config.json"'), "install.sh override
 assert.ok(
 	installSh.includes('cp -f "$ROLE_PACK_ROOT/config/paseo.config.json" "$HOME/.paseo/config.json"'),
 	"install.sh copies config/paseo.config.json -> ~/.paseo/config.json",
+);
+
+// install.ps1 mirrors the same override.
+assert.ok(installPs1.includes("config/paseo.config.json"), "install.ps1 references the canonical config file");
+assert.ok(installPs1.includes('"$env:USERPROFILE\\.paseo\\config.json"'), "install.ps1 overrides ~/.paseo/config.json");
+assert.ok(
+	installPs1.includes('Copy-Item (Join-Path $RolePackRoot "config\\paseo.config.json") "$env:USERPROFILE\\.paseo\\config.json" -Force'),
+	"install.ps1 copies config/paseo.config.json -> ~/.paseo/config.json",
 );
 
 // The canonical config is valid JSON and an object.

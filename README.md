@@ -160,6 +160,9 @@ Script copy:
 - MCP entry `agent-browser: { command: "agent-browser", args: ["--cdp", "9222", "mcp"] }` → `~/.pi/agent/mcp.json` nếu chưa có ở các config chuẩn
 - `mcps/vision_mcp/` → `~/.pi/agent/mcps/vision_mcp/` (vision MCP server)
 - MCP entry `vision` → `~/.pi/agent/mcp.json` nếu chưa có entry hợp lệ
+- Semble CLI + MCP extension + MCP entry `semble` → `~/.pi/agent/mcp.json` (xem [`docs/semble-integration.md`](docs/semble-integration.md))
+
+Chi tiết vision MCP: [`docs/vision-mcp-integration.md`](docs/vision-mcp-integration.md).
 
 ### agent-browser browser MCP
 
@@ -207,6 +210,14 @@ mcp({ tool: "read_image", args: { path: "<đường dẫn tuyệt đối tới �
 Peer không cần grant trong brief; không dùng bash để đọc file ảnh thay cho
 vision MCP. `node scripts/preflight.mjs --json` kiểm tra server copy / entry
 hợp lệ và cảnh báo `vision-env` khi thiếu key.
+
+### Semble code search (MCP)
+
+Installer cài CLI `semble` (`uv tool install semble`), extension Pi
+`pi-mcp-extension`, và merge entry `semble` vào `~/.pi/agent/mcp.json`
+(idempotent). Prompt peer/lead/supervisor đều có section `## Code Search`
+(Tìm code theo ý định thay vì grep). Chi tiết:
+[`docs/semble-integration.md`](docs/semble-integration.md).
 
 ### Paseo inspect contract test
 

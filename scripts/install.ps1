@@ -4,8 +4,10 @@
 #   extensions/paseo-team-policy.ts -> ~/.pi/agent/extensions/
 #   prompts/*.md                   -> ~/.pi/agent/extensions/prompts/
 #   skills/paseo-team-lead/         -> ~/.pi/agent/skills/paseo-team-lead/
+#   config/paseo.config.json       -> ~/.paseo/config.json (overrides current)
 #
-# Does NOT touch ~/.paseo/config.json - merge config/paseo.providers.example.json by hand.
+# Also installs the Semble code-search CLI + Pi MCP extension and merges the
+# `semble` MCP server entry (idempotent, preserves every other server).
 
 param(
   [string]$PiHome = "$env:USERPROFILE\.pi",
@@ -34,6 +36,10 @@ $teamSupportFiles = @(
 New-Item -ItemType Directory -Force -Path $extDir, $promptDir, $skillsDir | Out-Null
 # Routing configs live in ~/.paseo-pi-team (model-routing.local.json, cluster-routing.local.json).
 New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.paseo-pi-team" | Out-Null
+# Override the Paseo daemon config with the role pack's canonical config
+# (Pi providers + MCP injection into pi-supervisor/pi-lead/pi-peer).
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.paseo" | Out-Null
+Copy-Item (Join-Path $RolePackRoot "config\paseo.config.json") "$env:USERPROFILE\.paseo\config.json" -Force
 
 Copy-Item (Join-Path $RolePackRoot "extensions\paseo-team-policy.ts") (Join-Path $extDir "paseo-team-policy.ts") -Force
 Copy-Item (Join-Path $RolePackRoot "prompts\*.md") $promptDir -Force
@@ -67,6 +73,16 @@ if (-not $env:PI_CODING_AGENT_DIR) { $visionSetupArgs += @("--pi-home", $PiHome)
 if ($LASTEXITCODE -ne 0) {
   throw "vision MCP setup failed with exit code $LASTEXITCODE"
 }
+# Semble is a code-search CLI + stdio MCP server. The helper installs the CLI
+# (uv tool install semble), Pi's MCP extension (pi install npm:pi-mcp-extension)
+# and merges only the missing semble entry in Pi's MCP config (idempotent,
+# preserves every other server).
+$sembleSetupArgs = @("--install")
+if (-not $env:PI_CODING_AGENT_DIR) { $sembleSetupArgs += @("--pi-home", $PiHome) }
+& node (Join-Path $RolePackRoot "scripts\semble-setup.mjs") @sembleSetupArgs
+if ($LASTEXITCODE -ne 0) {
+  throw "semble MCP setup failed with exit code $LASTEXITCODE"
+}
 
 Write-Host ""
 Write-Host "[paseo-team] Installed:"
@@ -75,6 +91,8 @@ Write-Host "  prompts   -> $promptDir"
 Write-Host "  lead skill -> $skillDir"
 Write-Host "  OCR skill  -> $ocrSkillDir"
 Write-Host "  vision MCP -> $agentDir\mcps\vision_mcp"
+Write-Host "  semble MCP -> $agentDir\mcp.json (uvx --from semble[mcp] semble)"
+Write-Host "  paseo cfg  -> $env:USERPROFILE\.paseo\config.json"
 Write-Host "  support   -> $teamScriptsDir"
 $env:PASEO_TEAM_SCRIPTS_DIR = $teamScriptsDir
 Write-Host "  support env -> PASEO_TEAM_SCRIPTS_DIR=$teamScriptsDir (current process only)"
@@ -87,8 +105,8 @@ Write-Host "     Vision MCP: server at $agentDir\mcps\vision_mcp; set VISION_API
 Write-Host "  2. Verify OCR if needed: Get-Command ocr; ocr version"
 Write-Host "  3. Install the MCP adapter (PINNED version - Paseo tools depend on it):"
 Write-Host "     pi install npm:pi-mcp-adapter@2.19.0"
-Write-Host "  4. Merge config/paseo.providers.example.json into ~/.paseo/config.json"
-Write-Host "     (agents.providers.pi-* + daemon.mcp.injectIntoAgents: true)."
+Write-Host "  4. ~/.paseo/config.json was overridden from config/paseo.config.json"
+Write-Host "     (agents.providers.pi-* enabled + daemon.mcp.injectIntoAgents: true)."
 Write-Host "  5. Copy config/model-routing.example.json to ~/.paseo-pi-team/model-routing.local.json"
 Write-Host "     and fill in REAL model IDs from: paseo provider models pi-peer --json"
 Write-Host "     Cross-host controller: also copy config/cluster-routing.example.json to"
