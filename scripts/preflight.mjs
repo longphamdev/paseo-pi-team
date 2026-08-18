@@ -3,12 +3,13 @@
 //
 // Usage:
 //   node scripts/preflight.mjs [--json] [--strict] [--host-id <id>] [--cluster <path>]
-//                              [--routes <path>] [--hosts <path>] [--skip-models]
+//                              [--routes <path>] [--skip-models]
 //
 // Checks (per host): node, git, paseo CLI + daemon, pi CLI, pi-mcp-adapter,
 // role-pack extension + prompts, Paseo role providers, model inventory,
-// routing-config validity, per-model thinking support, hosts config,
-// cluster routing contract, endpoint env presence, repository state.
+// routing-config validity, per-model thinking support, cluster routing
+// contract, endpoint env presence, agent-browser CDP mode + reachability,
+// repository state.
 //
 // Never prints secret values: only env-var NAMES are checked/reported.
 // Exit code 1 when any check fails. In --strict mode, warnings that affect
@@ -20,7 +21,12 @@ import { execFileSync, execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { inspectAgentBrowser } from "./browser-setup.mjs";
+import {
+	describeCdpTarget,
+	inspectAgentBrowser,
+	probeCdpEndpoint,
+	probeCdpExposure,
+} from "./browser-setup.mjs";
 import {
 	VISION_MCP_SERVER,
 	isValidVisionMcpServer,
@@ -62,7 +68,9 @@ const routesPath = opt(
 	"--routes",
 	join(defaultRoutingDir(), "model-routing.local.json"),
 );
-const hostsPath = opt("--hosts", join(defaultRoutingDir(), "hosts.local.json"));
+// Not configurable: this path exists only to warn that a leftover legacy
+// registry is no longer read. The cluster file is the only host source.
+const legacyHostsPath = join(defaultRoutingDir(), "hosts.local.json");
 const clusterPath = opt("--cluster", defaultClusterRoutingPath());
 const hostIdArg = opt("--host-id", undefined);
 
@@ -282,6 +290,45 @@ else
 		"agent-browser-mcp",
 		`${browser.configPath} has no agent-browser server entry`,
 	);
+
+	// How the entry reaches a browser. A config only names a port; without the
+	// probe below, an unreachable CDP target first shows up as a failed browser
+	// call in the middle of a Peer turn instead of as host unreadiness.
+	if (browser.browserMcpEnabled && browser.cdpTarget) {
+		const target = browser.cdpTarget;
+		if (target.mode === "launch") {
+			pass("agent-browser-cdp", describeCdpTarget(target));
+		} else if (target.mode === "ambiguous") {
+			fail(
+				"agent-browser-cdp",
+				`the agent-browser entry in ${browser.configPath} has ambiguous --cdp flags (duplicated with different ports, or one is missing its port) — leave exactly one "--cdp <port>"`,
+			);
+		} else {
+			const probe = await probeCdpEndpoint({ port: target.port });
+			if (probe.ok) {
+				pass(
+					"agent-browser-cdp",
+					`attached to 127.0.0.1:${target.port} (${probe.browser}) — a Peer granted BROWSER_MCP_AUTHORITY inherits every session in that profile`,
+				);
+				// Loopback reachability says nothing about the bind address. A
+				// browser started with --remote-debugging-address=0.0.0.0 hands
+				// full, unauthenticated control to the whole network. Only
+				// meaningful once something is actually listening.
+				const exposed = await probeCdpExposure({ port: target.port });
+				if (exposed.length > 0)
+					warn(
+						"agent-browser-cdp-exposure",
+						`CDP port ${target.port} also answers on ${exposed.join(", ")} — unauthenticated browser control is reachable off-host; bind the browser to 127.0.0.1`,
+					);
+				else pass("agent-browser-cdp-exposure", "CDP port is loopback-only");
+			} else {
+				fail(
+					"agent-browser-cdp",
+					`nothing answers CDP on 127.0.0.1:${target.port} (${probe.error}) — start the browser with --remote-debugging-port=${target.port}, or reinstall without --attach-cdp-port to use launch mode`,
+				);
+			}
+		}
+	}
 }
 
 // --- vision MCP ---------------------------------------------------------------
@@ -499,55 +546,21 @@ if (routing && daemonUp && !skipModels) {
 	warn("routes", "model inventory checks skipped (--skip-models)");
 }
 
-// --- hosts config ---------------------------------------------------------------
+// --- legacy hosts.local.json migration notice ------------------------------------
+// The N-host registry was replaced by the single controller-local cluster file.
+// Removing the reader silently would leave a stale hosts.local.json looking
+// authoritative while nothing read it, so say so once, loudly, instead.
 
-if (existsSync(hostsPath)) {
-	try {
-		const data = JSON.parse(readFileSync(hostsPath, "utf8"));
-		const hosts = data?.hosts ?? {};
-		let problems = 0;
-		for (const [hostId, entry] of Object.entries(hosts)) {
-			if (typeof entry !== "object" || entry === null) {
-				fail(`host:${hostId}`, "host entry must be an object");
-				problems++;
-				continue;
-			}
-			if (
-				hostId !== "local" &&
-				typeof entry.endpointEnv === "string" &&
-				entry.endpointEnv.trim() !== ""
-			) {
-				if (process.env[entry.endpointEnv]) {
-					pass(
-						`host:${hostId}`,
-						`endpoint env ${entry.endpointEnv} present (value not printed)`,
-					);
-				} else {
-					warn(
-						`host:${hostId}`,
-						`endpoint env ${entry.endpointEnv} NOT set — remote routing to this host is blocked`,
-					);
-				}
-			} else if (hostId !== "local") {
-				warn(
-					`host:${hostId}`,
-					"no endpointEnv — only local-daemon routing is available for this host entry",
-				);
-			} else {
-				pass(`host:${hostId}`, "local daemon entry");
-			}
-		}
-		if (problems === 0) pass("hosts-config", hostsPath);
-	} catch (error) {
-		fail(
-			"hosts-config",
-			`hosts file is not valid JSON: ${String(error?.message ?? error)}`,
-		);
-	}
-} else {
+if (existsSync(legacyHostsPath)) {
 	warn(
 		"hosts-config",
-		`${hostsPath} missing (copy config/hosts.example.json for multi-host; single-host can ignore)`,
+		`${legacyHostsPath} is a REMOVED legacy format and is ignored — move its entries into ${clusterPath} (see docs/multi-host.md) and delete the file`,
+	);
+}
+if (process.argv.includes("--hosts")) {
+	warn(
+		"hosts-config",
+		"--hosts was removed with the legacy host registry; pass --cluster <path> instead",
 	);
 }
 

@@ -11,7 +11,11 @@
 
 param(
   [string]$PiHome = "$env:USERPROFILE\.pi",
-  [string]$RolePackRoot = (Split-Path -Parent $PSScriptRoot)
+  [string]$RolePackRoot = (Split-Path -Parent $PSScriptRoot),
+  # Optional: attach agent-browser to an already-running browser over CDP
+  # instead of letting it launch an isolated one. Opt-in with an explicit port
+  # - see scripts/browser-setup.mjs for why this is not a default.
+  [string]$AttachCdpPort = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,6 +28,9 @@ $skillDir  = Join-Path $skillsDir "paseo-team-lead"
 $ocrSkillDir = Join-Path $skillsDir "paseo-ocr-reviewer"
 $teamScriptsDir = Join-Path $extDir "paseo-team-scripts"
 $teamSupportFiles = @(
+  # lib-common.mjs must ship: every other support script imports it as
+  # "./lib-common.mjs" and would fail at import time without it.
+  "lib-common.mjs",
   "reliability.mjs",
   "watchdog.mjs",
   "team-communication.mjs",
@@ -63,6 +70,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 $browserSetupArgs = @("--install")
 if (-not $env:PI_CODING_AGENT_DIR) { $browserSetupArgs += @("--pi-home", $PiHome) }
+if ($AttachCdpPort) { $browserSetupArgs += @("--attach-cdp-port", $AttachCdpPort) }
 & node (Join-Path $RolePackRoot "scripts\browser-setup.mjs") @browserSetupArgs
 if ($LASTEXITCODE -ne 0) {
   throw "agent-browser setup failed with exit code $LASTEXITCODE"
