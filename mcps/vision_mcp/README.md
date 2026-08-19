@@ -26,6 +26,9 @@ Server đọc cấu hình từ env — có thể set trực tiếp trong shell, 
 | `VISION_MODEL` | `OPENAI_MODEL` | `vision` | Model id (vd `mimo-v2.5`, `gpt-4o`, ...) |
 | `VISION_MAX_IMAGE_BYTES` | — | `26214400` (25MB) | Giới hạn kích thước ảnh |
 | `VISION_TIMEOUT_MS` | — | `180000` | Timeout gọi model |
+| `VISION_MAX_DIM` | — | `1280` | Thu nhỏ ảnh về cạnh dài tối đa (px) trước khi gửi |
+| `VISION_QUALITY` | — | `80` | Quality re-encode cho định dạng lossy (jpeg/webp/avif/tiff) |
+| `VISION_COMPRESS_MIN_BYTES` | — | `0` | Chỉ nén nếu ảnh lớn hơn ngưỡng này (bytes); `0` = luôn nén |
 
 ### Cách 1 — export trong shell (đơn giản nhất)
 
@@ -75,6 +78,15 @@ Phân tích ảnh bằng vision model.
 - `max_tokens` (number, optional) — giới hạn output, mặc định 1024
 
 Trả về text mô tả / câu trả lời của model.
+
+### Nén ảnh trước khi gửi
+
+Khi gọi `read_image` bằng **`path`**, server **không gửi ảnh gốc lên** model. Thay vào đó nó:
+1. Mở ảnh gốc bằng `sharp`, **nén / thu nhỏ** theo `VISION_MAX_DIM` (cạnh dài tối đa, mặc định 1280px) và re-encode theo `VISION_QUALITY`;
+2. Gửi **bản nén** (không phải ảnh gốc) lên vision API;
+3. **Xoá bản nén vừa tạo** trong `finally` (dù gọi model thành công hay thất bại) — không để lại file tạm.
+
+Bản gốc trên đĩa được giữ nguyên, chỉ có bản nén tạm được tạo/xoá. Nếu ảnh nhỏ hơn `VISION_COMPRESS_MIN_BYTES` (mặc định 0 = luôn nén) thì bỏ qua nén. `data_url` không bị nén (không có file để đọc/tạo).
 
 ## Dùng với pi CLI
 

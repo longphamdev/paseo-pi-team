@@ -42,10 +42,19 @@ The server calls an OpenAI-compatible `chat/completions` endpoint directly (it
 does not go through `pi`). Set these in Pi's shell environment:
 
 ```text
-VISION_API_BASE  # base URL; fallback OPENAI_API_BASE / OPENAI_BASE_URL; default https://new-api.longphamthien.us/v1
-VISION_API_KEY   # API key; fallback OPENAI_API_KEY / NEW_API_API_KEY
-VISION_MODEL     # model id; default "vision" (Mimo V2.5)
+VISION_API_BASE                 # base URL; fallback OPENAI_API_BASE / OPENAI_BASE_URL; default https://new-api.longphamthien.us/v1
+VISION_API_KEY                  # API key; fallback OPENAI_API_KEY / NEW_API_API_KEY
+VISION_MODEL                    # model id; default "vision" (Mimo V2.5)
+VISION_MAX_DIM                  # optional; resize to max long edge (px) before sending, default 1280
+VISION_QUALITY                  # optional; re-encode quality for jpeg/webp/avif/tiff, default 80
+VISION_COMPRESS_MIN_BYTES       # optional; only compress if image is larger than this, default 0 (always)
 ```
+
+> Ghi chú nén ảnh: khi gọi `read_image` bằng `path`, server nén/thu nhỏ ảnh lại
+> bằng `sharp` rồi gửi **bản nén** lên model (không gửi ảnh gốc), và xoá bản nén
+> vừa tạo ngay sau khi gọi xong — không để lại file tạm. Bản gốc trên đĩa vẫn
+> được giữ nguyên. Các biến `VISION_MAX_DIM` / `VISION_QUALITY` /
+> `VISION_COMPRESS_MIN_BYTES` tuỳ chọn để điều chỉnh mức nén.
 
 No secret belongs in this repository; keep the key in the environment or a
 local env file.

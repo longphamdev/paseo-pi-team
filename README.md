@@ -344,6 +344,8 @@ VISION_API_KEY   # API key; fallback OPENAI_API_KEY / NEW_API_API_KEY
 VISION_MODEL     # model id; mặc định "vision" (Mimo V2.5)
 ```
 
+Khi gọi `read_image` bằng `path`, server nén/thu nhỏ ảnh bằng `sharp` rồi gửi **bản nén** lên model (không gửi ảnh gốc) và xoá bản nén vừa tạo ngay sau đó; ảnh gốc trên đĩa được giữ nguyên. Điều chỉnh mức nén bằng `VISION_MAX_DIM`/`VISION_QUALITY`/`VISION_COMPRESS_MIN_BYTES` (tuỳ chọn).
+
 Cả 3 role (supervisor/lead/peer) đều được gọi tool `read_image` qua `mcp`:
 
 ```text

@@ -16,9 +16,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { readFile } from "node:fs/promises";
-import { extname, resolve } from "node:path";
-import { stat } from "node:fs/promises";
+import { readFile, mkdtemp, stat, rm } from "node:fs/promises";
+import { extname, resolve, join } from "node:path";
+import { tmpdir } from "node:os";
+import sharp from "sharp";
 /** Env helper: trả undefined cho biến chưa set HOẶC set thành chuỗi rỗng/whitespace. */
 function env(name) {
     const v = process.env[name];
@@ -32,6 +33,10 @@ const API_KEY = env("VISION_API_KEY") ?? env("OPENAI_API_KEY") ?? env("NEW_API_A
 const MODEL = env("VISION_MODEL") ?? env("OPENAI_MODEL") ?? "vision";
 const MAX_IMAGE_BYTES = Number(env("VISION_MAX_IMAGE_BYTES") ?? 25 * 1024 * 1024);
 const TIMEOUT_MS = Number(env("VISION_TIMEOUT_MS") ?? 180_000);
+// Nén ảnh trước khi gửi lên model (chỉ áp dụng khi gọi qua `path`).
+const MAX_DIM = Number(env("VISION_MAX_DIM") ?? 1280); // cạnh dài tối đa sau khi nén (px)
+const JPEG_QUALITY = Number(env("VISION_QUALITY") ?? 80); // quality cho jpeg/webp/avif/tiff
+const COMPRESS_MIN_BYTES = Number(env("VISION_COMPRESS_MIN_BYTES") ?? 0); // chỉ nén nếu ảnh > ngưỡng này
 /** Chuẩn hoá base URL -> URL chat/completions (chấp nhận base đã kết thúc bằng /chat/completions). */
 function chatCompletionsUrl(base) {
     const b = base.replace(/\/+$/, "");
@@ -52,6 +57,52 @@ const MIME_BY_EXT = {
 function mimeFor(filePath) {
     return MIME_BY_EXT[extname(filePath).toLowerCase()] ?? "image/png";
 }
+/**
+ * Nén / thu nhỏ ảnh cục bộ thành một bản nén tạm thời (nhỏ hơn), rồi trả về
+ * mime + base64 của bản nén cùng hàm `cleanup()` để xoá bản nén vừa tạo.
+ * Không gửi ảnh gốc lên model.
+ */
+async function compressImage(absPath) {
+    let tmpDir;
+    const meta = await sharp(absPath).metadata();
+    const fmt = meta.format;
+    const srcW = meta.width ?? MAX_DIM;
+    const srcH = meta.height ?? MAX_DIM;
+    // Thu nhỏ theo cạnh dài nhất, không phóng to ảnh vốn đã nhỏ.
+    const scale = Math.min(1, MAX_DIM / Math.max(srcW, srcH));
+    const targetW = Math.max(1, Math.round(srcW * scale));
+    const targetH = Math.max(1, Math.round(srcH * scale));
+    // Chọn định dạng đầu ra (giữ nguyên nếu sharp ghi được, else rơi về jpeg).
+    let outExt = fmt && ["jpeg", "png", "webp", "avif", "tiff"].includes(fmt) ? fmt : "jpeg";
+    let pipeline = sharp(absPath).resize(targetW, targetH, {
+        fit: "inside",
+        withoutEnlargement: true,
+    });
+    if (outExt === "jpeg")
+        pipeline = pipeline.jpeg({ quality: JPEG_QUALITY });
+    else if (outExt === "png")
+        pipeline = pipeline.png({ compressionLevel: 9 });
+    else if (outExt === "webp")
+        pipeline = pipeline.webp({ quality: JPEG_QUALITY });
+    else if (outExt === "avif")
+        pipeline = pipeline.avif({ quality: JPEG_QUALITY });
+    else if (outExt === "tiff")
+        pipeline = pipeline.tiff({ quality: JPEG_QUALITY });
+    tmpDir = await mkdtemp(join(tmpdir(), "vision-mcp-"));
+    const outPath = join(tmpDir, `img.${outExt}`);
+    await pipeline.toFile(outPath);
+    const buf = await readFile(outPath);
+    return {
+        mime: MIME_BY_EXT[`.${outExt}`] ?? "image/jpeg",
+        b64: buf.toString("base64"),
+        originalBytes: (await stat(absPath)).size,
+        compressedBytes: buf.length,
+        cleanup: async () => {
+            if (tmpDir)
+                await rm(tmpDir, { recursive: true, force: true });
+        },
+    };
+}
 const server = new McpServer({
     name: "vision-mcp",
     version: "1.1.0",
@@ -63,6 +114,8 @@ server.tool("read_image", "Analyze an image using the remote vision model (Mimo 
     prompt: z.string().optional().describe("Question or instruction for the vision model. Defaults to a detailed image description."),
     max_tokens: z.number().optional().describe("Maximum output tokens. Defaults to 1024."),
 }, async ({ path: filePath, data_url, prompt, max_tokens }) => {
+    let tempCleanup = null;
+    let compressionNote = "";
     try {
         if (!API_KEY) {
             return {
@@ -106,9 +159,20 @@ server.tool("read_image", "Analyze an image using the remote vision model (Mimo 
                     isError: true,
                 };
             }
-            const buf = await readFile(abs);
-            mime = mimeFor(abs);
-            b64 = buf.toString("base64");
+            // Nén ảnh lại nhỏ hơn, gửi bản nén lên model, rồi xoá bản nén vừa tạo
+            // (thay vì gửi ảnh gốc). Bỏ qua nếu ảnh đã nhỏ hơn ngưỡng COMPRESS_MIN_BYTES.
+            if (info.size > COMPRESS_MIN_BYTES) {
+                const c = await compressImage(abs);
+                mime = c.mime;
+                b64 = c.b64;
+                tempCleanup = c.cleanup;
+                compressionNote = `\n(image compressed ${c.originalBytes} -> ${c.compressedBytes} bytes before sending)`;
+            }
+            else {
+                const buf = await readFile(abs);
+                mime = mimeFor(abs);
+                b64 = buf.toString("base64");
+            }
         }
         else {
             return {
@@ -169,7 +233,7 @@ server.tool("read_image", "Analyze an image using the remote vision model (Mimo 
         if (typeof text !== "string" || text.length === 0) {
             return { content: [{ type: "text", text: "Vision model returned empty output." }], isError: true };
         }
-        return { content: [{ type: "text", text }] };
+        return { content: [{ type: "text", text: text + compressionNote }] };
     }
     catch (err) {
         return {
@@ -178,6 +242,12 @@ server.tool("read_image", "Analyze an image using the remote vision model (Mimo 
             ],
             isError: true,
         };
+    }
+    finally {
+        // Xoá bản nén vừa tạo (nếu có) dù gọi model thành công hay thất bại.
+        if (tempCleanup) {
+            await tempCleanup().catch(() => { });
+        }
     }
 });
 async function main() {

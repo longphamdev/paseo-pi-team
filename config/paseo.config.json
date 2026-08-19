@@ -4,74 +4,13 @@
     "listen": "127.0.0.1:6767",
     "mcp": {
       "injectIntoAgents": true,
-      "injectIntoProviders": [
-        "pi-supervisor",
-        "pi-lead",
-        "pi-peer"
-      ]
-    },
-    "browserTools": {
-      "enabled": false
+      "injectIntoProviders": ["pi-supervisor", "pi-lead", "pi-peer"]
     },
     "autoArchiveAfterMerge": false,
     "enableTerminalAgentHooks": false,
     "appendSystemPrompt": "",
-    "terminalProfiles": [
-      {
-        "id": "pi",
-        "name": "Pi",
-        "command": "pi",
-        "args": [
-          "{{{prompt}}}"
-        ],
-        "icon": "pi"
-      },
-      {
-        "id": "claude",
-        "name": "Claude Code",
-        "command": "claude",
-        "args": [
-          "{{{prompt}}}"
-        ],
-        "icon": "claude"
-      },
-      {
-        "id": "codex",
-        "name": "Codex",
-        "command": "codex",
-        "args": [
-          "{{{prompt}}}"
-        ],
-        "icon": "codex"
-      },
-      {
-        "id": "opencode",
-        "name": "OpenCode",
-        "command": "opencode",
-        "args": [
-          "--prompt={{{prompt}}}"
-        ],
-        "icon": "opencode"
-      }
-    ],
-    "agentProfiles": [
-      {
-        "id": "legacy_favorite:opencode:new-api%2Fplanner",
-        "name": "new-api/planner",
-        "provider": "opencode",
-        "model": "new-api/planner"
-      },
-      {
-        "id": "legacy_favorite:opencode:new-api%2Fcoder",
-        "name": "new-api/coder",
-        "provider": "opencode",
-        "model": "new-api/coder"
-      }
-    ],
     "cors": {
-      "allowedOrigins": [
-        "https://app.paseo.sh"
-      ]
+      "allowedOrigins": ["https://app.paseo.sh"]
     },
     "relay": {
       "enabled": true
@@ -99,12 +38,12 @@
             "thinkingOptions": [
               {
                 "id": "high",
-                "label": "High",
-                "isDefault": true
+                "label": "High"
               },
               {
                 "id": "max",
-                "label": "Max"
+                "label": "Max",
+                "isDefault": true
               }
             ]
           },
@@ -152,12 +91,12 @@
             "thinkingOptions": [
               {
                 "id": "high",
-                "label": "High",
-                "isDefault": true
+                "label": "High"
               },
               {
                 "id": "max",
-                "label": "Max"
+                "label": "Max",
+                "isDefault": true
               }
             ]
           },
@@ -172,8 +111,7 @@
               },
               {
                 "id": "medium",
-                "label": "Medium",
-                "isDefault": true
+                "label": "Medium"
               },
               {
                 "id": "high",
@@ -185,7 +123,8 @@
               },
               {
                 "id": "max",
-                "label": "Max"
+                "label": "Max",
+                "isDefault": true
               }
             ]
           }
@@ -220,7 +159,8 @@
             "thinkingOptions": [
               {
                 "id": "low",
-                "label": "Low"
+                "label": "Low",
+                "isDefault": true
               },
               {
                 "id": "medium",
@@ -236,8 +176,7 @@
               },
               {
                 "id": "max",
-                "label": "Max",
-                "isDefault": true
+                "label": "Max"
               }
             ]
           }
@@ -250,138 +189,6 @@
         "enabled": false
       },
       "claude": {
-        "enabled": false
-      },
-      "opencode": {
-        "enabled": false
-      },
-      "opencode-supervisor": {
-        "extends": "opencode",
-        "label": "OpenCode Supervisor — Governance Front Door",
-        "env": {
-          "OPENCODE_CONFIG_DIR": "~/.config/opencode/opencode-profiles/supervisor"
-        },
-        "models": [
-          {
-            "id": "new-api/planner",
-            "label": "GPT-5.6 Luna",
-            "isDefault": true,
-            "thinkingOptions": [
-              {
-                "id": "low",
-                "label": "Low"
-              },
-              {
-                "id": "medium",
-                "label": "Medium"
-              },
-              {
-                "id": "high",
-                "label": "High"
-              },
-              {
-                "id": "xhigh",
-                "label": "XHigh"
-              },
-              {
-                "id": "max",
-                "label": "Max",
-                "isDefault": true
-              }
-            ]
-          }
-        ],
-        "enabled": false
-      },
-      "opencode-lead": {
-        "extends": "opencode",
-        "label": "OpenCode Lead — Planning & Coordination",
-        "env": {
-          "OPENCODE_CONFIG_DIR": "~/.config/opencode/opencode-profiles/lead"
-        },
-        "models": [
-          {
-            "id": "new-api/planner",
-            "label": "GPT-5.6 Luna",
-            "isDefault": true,
-            "thinkingOptions": [
-              {
-                "id": "low",
-                "label": "Low"
-              },
-              {
-                "id": "medium",
-                "label": "Medium"
-              },
-              {
-                "id": "high",
-                "label": "High"
-              },
-              {
-                "id": "xhigh",
-                "label": "XHigh"
-              },
-              {
-                "id": "max",
-                "label": "Max",
-                "isDefault": true
-              }
-            ]
-          }
-        ],
-        "enabled": false
-      },
-      "opencode-peer": {
-        "extends": "opencode",
-        "label": "OpenCode Peer — Engineer / Architect / Reviewer / Shadow / Scout",
-        "env": {
-          "OPENCODE_CONFIG_DIR": "~/.config/opencode/opencode-profiles/peer"
-        },
-        "models": [
-          {
-            "id": "new-api/coder",
-            "label": "DeepSeek V4 Flash",
-            "isDefault": true,
-            "thinkingOptions": [
-              {
-                "id": "high",
-                "label": "High",
-                "isDefault": true
-              },
-              {
-                "id": "max",
-                "label": "Max"
-              }
-            ]
-          },
-          {
-            "id": "new-api/planner",
-            "label": "GPT-5.6 Luna",
-            "thinkingOptions": [
-              {
-                "id": "low",
-                "label": "Low"
-              },
-              {
-                "id": "medium",
-                "label": "Medium"
-              },
-              {
-                "id": "high",
-                "label": "High"
-              },
-              {
-                "id": "xhigh",
-                "label": "XHigh"
-              },
-              {
-                "id": "max",
-                "label": "Max",
-                "isDefault": true
-              }
-            ]
-          }
-        ],
         "enabled": false
       }
     }
