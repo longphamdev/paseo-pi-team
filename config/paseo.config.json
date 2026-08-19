@@ -74,6 +74,21 @@
                 "isDefault": true
               }
             ]
+          },
+          {
+            "id": "new-api/vision",
+            "label": "Mimo V2.5",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "high",
+                "label": "High",
+                "isDefault": true
+              }
+            ]
           }
         ]
       },
@@ -127,6 +142,21 @@
                 "isDefault": true
               }
             ]
+          },
+          {
+            "id": "new-api/vision",
+            "label": "Mimo V2.5",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "high",
+                "label": "High",
+                "isDefault": true
+              }
+            ]
           }
         ]
       },
@@ -177,6 +207,21 @@
               {
                 "id": "max",
                 "label": "Max"
+              }
+            ]
+          },
+          {
+            "id": "new-api/vision",
+            "label": "Mimo V2.5",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "high",
+                "label": "High",
+                "isDefault": true
               }
             ]
           }
