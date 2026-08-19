@@ -31,6 +31,11 @@ const API_BASE = env("VISION_API_BASE") ??
     "https://new-api.longphamthien.us/v1";
 const API_KEY = env("VISION_API_KEY") ?? env("OPENAI_API_KEY") ?? env("NEW_API_API_KEY") ?? "";
 const MODEL = env("VISION_MODEL") ?? env("OPENAI_MODEL") ?? "vision";
+// Một số model (vd Mimo V2.5) là reasoning model: viết `reasoning_content` trước khi
+// ra đáp án thật ở `content`; `max_tokens` tính gộp cả phần reasoning + content, nên
+// reasoning dài sẽ nuốt trọn max_tokens -> content về null. LUÔN TẮT thinking để
+// tránh lỗi "empty output" bất kể model nào (hầu hết proxy bỏ qua param lạ nên an toàn).
+const THINKING = { type: "disabled" };
 const MAX_IMAGE_BYTES = Number(env("VISION_MAX_IMAGE_BYTES") ?? 25 * 1024 * 1024);
 const TIMEOUT_MS = Number(env("VISION_TIMEOUT_MS") ?? 180_000);
 // Nén ảnh trước khi gửi lên model (chỉ áp dụng khi gọi qua `path`).
@@ -112,7 +117,7 @@ server.tool("read_image", "Analyze an image using the remote vision model (Mimo 
     path: z.string().optional().describe("Absolute or relative path to a local image file (png, jpg, webp, gif, ...)."),
     data_url: z.string().optional().describe("Alternative to path: a data URL like data:image/png;base64,<base64>."),
     prompt: z.string().optional().describe("Question or instruction for the vision model. Defaults to a detailed image description."),
-    max_tokens: z.number().optional().describe("Maximum output tokens. Defaults to 1024."),
+    max_tokens: z.number().optional().describe("Maximum output tokens. Defaults to 4096."),
 }, async ({ path: filePath, data_url, prompt, max_tokens }) => {
     let tempCleanup = null;
     let compressionNote = "";
@@ -194,7 +199,8 @@ server.tool("read_image", "Analyze an image using the remote vision model (Mimo 
                     ],
                 },
             ],
-            max_tokens: max_tokens ?? 1024,
+            max_tokens: max_tokens ?? 4096,
+            thinking: THINKING,
         };
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
