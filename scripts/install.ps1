@@ -37,7 +37,8 @@ $teamSupportFiles = @(
   "ocr-review.mjs",
   "remote-paseo.mjs",
   "model-routing.mjs",
-  "team-scripts-path.mjs"
+  "team-scripts-path.mjs",
+  "check-vision-support.mjs"
 )
 
 New-Item -ItemType Directory -Force -Path $extDir, $promptDir, $skillsDir | Out-Null

@@ -208,6 +208,110 @@ export function isVisionMcpTarget(name: string): boolean {
 	return /(^|[_:])read_image$/.test(name.toLowerCase());
 }
 
+/**
+ * Minimal shape of the runtime model pi exposes on the extension context
+ * (ctx.model). Only `.input` is needed to decide image support.
+ */
+export interface ModelLike {
+	/** Declared input capabilities; contains "image" when the model reads images directly. */
+	input?: readonly string[];
+}
+export type ModelImageSupport = true | false | undefined;
+
+/**
+ * Whether the current model can read images directly, from pi's declared
+ * capability (the same `input` field pi uses to decide whether to attach an
+ * image to the request). true = image-capable, false = text-only,
+ * undefined = unknown (no model or no input metadata).
+ */
+export function modelSupportsImages(
+	model: ModelLike | undefined,
+): ModelImageSupport {
+	if (!model || !Array.isArray(model.input) || model.input.length === 0) {
+		return undefined;
+	}
+	return model.input.includes("image");
+}
+
+/**
+ * Vision-MCP fallback gate. Default ON: when the current model already reads
+ * images directly, read_image is blocked so the agent uses its own model.
+ * Set PASEO_VISION_FALLBACK_ONLY=0 to always allow the vision MCP (dedicated
+ * vision model / built-in image compression). Models that do NOT declare
+ * image input (or are unknown) keep the vision fallback open.
+ */
+export function visionFallbackOnly(): boolean {
+	const raw = process.env.PASEO_VISION_FALLBACK_ONLY?.trim().toLowerCase();
+	return !(raw === "0" || raw === "false" || raw === "no");
+}
+
+/** Block reason when the model already reads images and fallback-only is on. */
+export function visionMcpBlockReason(
+	model: ModelLike | undefined,
+): string | null {
+	if (!visionFallbackOnly()) return null;
+	if (modelSupportsImages(model) !== true) return null;
+	return 'MODEL_IMAGE_READING: direct — model hiện tại đọc được ảnh trực tiếp ' +
+		'(input gồm "image"), nên vision MCP read_image bị chặn (fallback-only). ' +
+		'Đọc ảnh bằng tool `read`. Gỡ gate: PASEO_VISION_FALLBACK_ONLY=0.';
+}
+
+/**
+ * Raster image extensions a text-only model cannot actually perceive. SVG is
+ * excluded on purpose: it is text-based markup the model CAN read.
+ */
+const RASTER_IMAGE_EXTENSION_RE =
+	/\.(?:png|jpe?g|gif|webp|bmp|avif|tiff?|ico)$/i;
+
+/**
+ * Automatic vision fallback: when the current model CANNOT read images, a
+ * `read` call aimed at a raster image is blocked so the agent does not burn a
+ * turn producing an image the model will silently drop. The reason routes the
+ * agent to the vision MCP instead. Unknown capability stays permissive.
+ */
+export function readImageBlockReason(
+	model: ModelLike | undefined,
+	filePath: string,
+): string | null {
+	if (modelSupportsImages(model) !== false) return null;
+	if (typeof filePath !== "string" || filePath.trim().length === 0) return null;
+	if (!RASTER_IMAGE_EXTENSION_RE.test(filePath)) return null;
+	return 'MODEL_IMAGE_READING: vision-only — model hiện tại KHÔNG đọc được ảnh, ' +
+		'nên `read` file ảnh bị chặn (ảnh sẽ bị model bỏ đi). Dùng vision MCP để ' +
+		'phân tích ảnh: mcp({ tool: "read_image", args: { path: "<đường dẫn ảnh>", prompt: "<câu hỏi>" } }).';
+}
+
+/**
+ * System-prompt directive telling the agent how to handle images this turn,
+ * based on the current model's declared capability. This is the check the
+ * agent should trust BEFORE calling read_image.
+ */
+export function modelImageDirective(model: ModelLike | undefined): string {
+	const support = modelSupportsImages(model);
+	if (support === true) {
+		return [
+			"## Model vision",
+			"MODEL_IMAGE_READING: direct — model của bạn ĐỌC ĐƯỢC ảnh trực tiếp.",
+			"- Muốn xem ảnh: dùng tool `read` (pi gắn ảnh inline cho model); KHÔNG gọi vision MCP read_image (đang bị chặn fallback-only).",
+		].join("\n");
+	}
+	if (support === false) {
+		return [
+			"## Model vision",
+			"MODEL_IMAGE_READING: vision-only — model của bạn KHÔNG đọc được ảnh trực tiếp.",
+			"- `read` file ảnh (png/jpg/...) sẽ bị chặn — đừng đọc ảnh bằng `read`.",
+			"- Phân tích ảnh (screenshot/PNG/JPG/diagram...) bằng vision MCP qua read_image.",
+			"- Không lãng phí `read` để đọc ảnh cho model không nhận image input.",
+		].join("\n");
+	}
+	return [
+		"## Model vision",
+		"MODEL_IMAGE_READING: unknown — chưa khai báo model có hỗ trợ ảnh hay không.",
+		"- Ưu tiên thử `read` trước; nếu ảnh không được model nhận/diễn giải (lỗi hoặc mô tả trống) thì rơi về vision MCP read_image.",
+		"- Verify từng model: node scripts/check-vision-support.mjs",
+	].join("\n");
+}
+
 /** Monitoring-only Paseo tools — the supervisor's default surface. */
 const SUPERVISOR_MONITORING_TARGETS: string[] = [
 	"list_agents",
@@ -336,7 +440,7 @@ export function denyReason(
 	toolName: string,
 ): string {
 	if (role === "peer" && (toolName === "mcp" || toolName === "mcp_script")) {
-		return "Peer MCP is limited to the vision MCP (read_image, always allowed) plus agent-browser targets when the current V3 brief grants BROWSER_MCP_AUTHORITY: allowed. Paseo orchestration MCP remains forbidden. Report a DEPENDENCY_REQUEST to the Lead instead.";
+		return "Peer MCP is limited to the vision MCP (read_image, fallback-only khi model đã đọc được ảnh trực tiếp) plus agent-browser targets when the current V3 brief grants BROWSER_MCP_AUTHORITY: allowed. Paseo orchestration MCP remains forbidden. Report a DEPENDENCY_REQUEST to the Lead instead.";
 	}
 	if (role === "peer" && matchesPaseoToolName(toolName, ALL_PASEO_TOOLS)) {
 		return "Peer cannot orchestrate agents or manage workspaces. Report a DEPENDENCY_REQUEST to the Lead instead.";
@@ -559,6 +663,7 @@ function isAgentBrowserServer(value: unknown): boolean {
 export function peerMcpBlockReason(
 	input: unknown,
 	brief: ParsedTaskBrief | null,
+	model: ModelLike | undefined = undefined,
 ): string | null {
 	const classification = classifyMcpInput(input);
 	if (classification.kind === "unknown") {
@@ -598,8 +703,10 @@ export function peerMcpBlockReason(
 		return "Peer vision/browser MCP meta operation is not allowed; use an explicit target.";
 	}
 	const target = classification.target ?? "";
-	// Vision MCP image reading is normal work — allowed without a brief grant.
-	if (isVisionMcpTarget(target)) return null;
+	// Vision MCP image reading is allowed without a brief grant, but only as a
+	// FALLBACK: when the current model already reads images directly it is
+	// blocked, so the peer reads with its own model instead.
+	if (isVisionMcpTarget(target)) return visionMcpBlockReason(model);
 	if (!browserMcpAllowed(brief)) {
 		return "Peer browser MCP is not authorized for this turn. Lead must send a V3 brief with BROWSER_MCP_AUTHORITY: allowed.";
 	}
@@ -608,7 +715,11 @@ export function peerMcpBlockReason(
 		: `"${target}" is not a vision or agent-browser MCP target; Paseo and unrelated MCP servers remain forbidden for Peers.`;
 }
 
-export function mcpBlockReason(role: TeamRole, input: unknown): string | null {
+export function mcpBlockReason(
+	role: TeamRole,
+	input: unknown,
+	model: ModelLike | undefined = undefined,
+): string | null {
 	const classification = classifyMcpInput(input);
 	if (classification.kind === "meta") return null;
 	if (classification.kind === "unknown") {
@@ -618,9 +729,10 @@ export function mcpBlockReason(role: TeamRole, input: unknown): string | null {
 		);
 	}
 	const target = classification.target ?? "";
-	// Vision MCP image reading (read_image) is allowed for EVERY role —
-	// analyzing images is normal work, not orchestration.
-	if (isVisionMcpTarget(target)) return null;
+	// Vision MCP image reading (read_image) is allowed for EVERY role, but only
+	// as a FALLBACK: when the current model already reads images directly it is
+	// blocked, so the model uses its own image input instead.
+	if (isVisionMcpTarget(target)) return visionMcpBlockReason(model);
 	if (role === "lead" && isAgentBrowserMcpTarget(target)) return null;
 	if (!matchesPaseoToolName(target, mcpAllowedTargets(role))) {
 		if (role === "supervisor") {
@@ -666,6 +778,7 @@ const MCP_SCRIPT_DYNAMIC_CALL_RE =
 export function mcpScriptBlockReason(
 	role: TeamRole,
 	code: string,
+	model: ModelLike | undefined = undefined,
 ): string | null {
 	// Supervisor: mcp_script can't be argument-guarded, so its scan keeps the
 	// stricter monitoring-only set (create_agent excluded). mcp_script is
@@ -685,6 +798,10 @@ export function mcpScriptBlockReason(
 		// target escapes allowlist validation entirely.
 		const name = match[1] ?? match[2] ?? match[3] ?? match[4] ?? "";
 		if (["call", "describe", "search", "emit"].includes(name)) continue;
+		if (isVisionMcpTarget(name)) {
+			const visionBlock = visionMcpBlockReason(model);
+			if (visionBlock) return visionBlock;
+		}
 		if (
 			!matchesPaseoToolName(name, allowed) &&
 			!(role === "lead" && isAgentBrowserMcpTarget(name))
@@ -1258,7 +1375,7 @@ export default function (pi: ExtensionAPI) {
 		applyPolicy(pi, r);
 	});
 
-	pi.on("before_agent_start", async (event) => {
+	pi.on("before_agent_start", async (event, ctx) => {
 		if (r === "peer") {
 			// Recompute authority from THIS prompt — never inherit from an
 			// earlier turn. Missing/malformed brief → read-only.
@@ -1271,13 +1388,15 @@ export default function (pi: ExtensionAPI) {
 		}
 		applyPolicy(pi, r);
 		const rolePrompt = loadRolePrompt(r);
-		if (!rolePrompt) return;
+		const parts: string[] = [];
+		if (rolePrompt) parts.push(`## Paseo Team Role\n${rolePrompt}`);
+		parts.push(modelImageDirective(ctx?.model));
 		return {
-			systemPrompt: `${event.systemPrompt}\n\n## Paseo Team Role\n${rolePrompt}`,
+			systemPrompt: `${event.systemPrompt}\n\n${parts.join("\n\n")}`,
 		};
 	});
 
-	pi.on("tool_call", async (event) => {
+	pi.on("tool_call", async (event, ctx) => {
 		const peerMode = currentPeerMode();
 		const policy = currentPolicy(r);
 		if (
@@ -1310,13 +1429,24 @@ export default function (pi: ExtensionAPI) {
 				reason: denyReason(r, peerMode, event.toolName),
 			};
 		}
+		if (isToolCallEventType("read", event)) {
+			// Automatic vision fallback: with a text-only model, reading an image
+			// would feed the model an attachment it silently drops. Block it and
+			// route the turn to the vision MCP instead.
+			const readPath =
+				event.input && typeof event.input === "object" && "path" in event.input
+					? String((event.input as { path?: unknown }).path ?? "")
+					: "";
+			const readBlockReason = readImageBlockReason(ctx?.model, readPath);
+			if (readBlockReason) return { block: true, reason: readBlockReason };
+		}
 		if (isToolCallEventType("mcp", event)) {
 			if (r === "peer") {
-				const blockReason = peerMcpBlockReason(event.input, currentBrief);
+				const blockReason = peerMcpBlockReason(event.input, currentBrief, ctx?.model);
 				if (blockReason) return { block: true, reason: blockReason };
 			}
 			if (r === "supervisor" || r === "lead") {
-				const blockReason = mcpBlockReason(r, event.input);
+				const blockReason = mcpBlockReason(r, event.input, ctx?.model);
 				if (blockReason) {
 					return { block: true, reason: blockReason };
 				}
@@ -1327,7 +1457,7 @@ export default function (pi: ExtensionAPI) {
 			isToolCallEventType("mcp_script", event)
 		) {
 			const code = typeof event.input.code === "string" ? event.input.code : "";
-			const blockReason = mcpScriptBlockReason(r, code);
+			const blockReason = mcpScriptBlockReason(r, code, ctx?.model);
 			if (blockReason) {
 				return { block: true, reason: blockReason };
 			}

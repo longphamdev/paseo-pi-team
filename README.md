@@ -60,6 +60,7 @@ paseo-pi-team/
 │   ├── browser-setup.mjs           # installs agent-browser CLI + Chrome runtime + MCP entry
 │   ├── team-scripts-path.mjs       # durable support-script path resolver
 │   ├── vision-setup.mjs            # install vision MCP server + merge entry
+│   ├── check-vision-support.mjs    # probe a model: can it read images? (verify before vision MCP)
 │   ├── semble-setup.mjs            # installs semble CLI (uv) + Pi MCP extension + entry
 │   └── preflight.mjs               # host readiness check (--json, --strict, --host-id)
 ├── test/                           # `npm test` runs every test/*.test.{mjs,mts}
@@ -346,11 +347,19 @@ VISION_MODEL     # model id; mặc định "vision" (Mimo V2.5)
 
 Khi gọi `read_image` bằng `path`, server nén/thu nhỏ ảnh bằng `sharp` rồi gửi **bản nén** lên model (không gửi ảnh gốc) và xoá bản nén vừa tạo ngay sau đó; ảnh gốc trên đĩa được giữ nguyên. Điều chỉnh mức nén bằng `VISION_MAX_DIM`/`VISION_QUALITY`/`VISION_COMPRESS_MIN_BYTES` (tuỳ chọn).
 
-Cả 3 role (supervisor/lead/peer) đều được gọi tool `read_image` qua `mcp`:
+Cả 3 role (supervisor/lead/peer) đều được gọi tool `read_image` qua `mcp` —
+nhưng vision là **fallback-only**: extension đọc `input` của model hiện tại
+(`ctx.model.input`) mỗi turn, inject directive `MODEL_IMAGE_READING` vào system
+prompt và chặn `read_image` khi model đã khai báo đọc được ảnh trực tiếp
+(`PASEO_VISION_FALLBACK_ONLY=0` để luôn cho phép).
 
 ```text
 mcp({ tool: "read_image", args: { path: "<đường dẫn tuyệt đối tới ảnh>", prompt: "<câu hỏi / điều cần phân tích>" } })
 ```
+
+Trước khi dùng vision, verify model có đọc được ảnh không:
+`node scripts/check-vision-support.mjs --model <model-id> --json` (trả
+`VERIFIED`/`REJECTED`/`UNCONFIGURED`).
 
 Peer không cần grant trong brief; không dùng bash để đọc file ảnh thay cho
 vision MCP. `node scripts/preflight.mjs --json` kiểm tra server copy / entry

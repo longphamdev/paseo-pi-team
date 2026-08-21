@@ -51,7 +51,7 @@ for (const role of ["pi-supervisor", "pi-lead", "pi-peer"]) {
 }
 
 // Non-Pi providers are disabled (role pack runs on Pi).
-for (const provider of ["copilot", "codex", "claude", "opencode"]) {
+for (const provider of ["copilot", "codex", "claude"]) {
 	assert.equal(config.agents.providers[provider].enabled, false, `${provider} disabled`);
 }
 

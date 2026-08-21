@@ -254,27 +254,52 @@ export function installVisionMcp({ piHome, repoRoot, configPath } = {}) {
 	});
 	actions.push(`installed vision MCP server -> ${resolvedInstall}`);
 
-	// 2. Ensure the compiled entry exists; rebuild only when it is missing.
+	// 2. Ensure runtime dependencies exist. The copy filter drops node_modules
+	// (untracked), so a committed dist/index.js would otherwise install a server
+	// that cannot start (ERR_MODULE_NOT_FOUND for @modelcontextprotocol/sdk).
+	// Install prod deps whenever node_modules is missing — build is not needed
+	// because dist/index.js is committed.
+	const nodeModules = join(resolvedInstall, "node_modules");
+	if (!existsSync(nodeModules)) {
+		const ci = run(
+			"npm",
+			["ci", "--no-audit", "--no-fund", "--omit=dev"],
+			{ cwd: resolvedInstall, timeout: 300000 },
+		);
+		const install = ci.ok
+			? ci
+			: run(
+					"npm",
+					["install", "--no-audit", "--no-fund"],
+					{ cwd: resolvedInstall, timeout: 300000 },
+			  );
+		if (!install.ok) {
+			throw new Error(
+				`vision MCP dependencies install failed (npm ci): ${install.stderr || install.error || install.stdout}`,
+			);
+		}
+		actions.push("installed vision MCP dependencies (npm ci --omit=dev)");
+	}
+
+	// 3. Ensure the compiled entry exists; rebuild only when it is missing.
 	const entry = join(resolvedInstall, "dist", "index.js");
 	if (!existsSync(entry)) {
-		for (const args of [
-			["install", "--no-audit", "--no-fund"],
-			["run", "build"],
-		]) {
-			const result = run("npm", args, { cwd: resolvedInstall, timeout: 300000 });
-			if (!result.ok) {
-				throw new Error(
-					`vision MCP build failed (npm ${args[0]}): ${result.stderr || result.error || result.stdout}`,
-				);
-			}
+		const build = run("npm", ["run", "build"], {
+			cwd: resolvedInstall,
+			timeout: 300000,
+		});
+		if (!build.ok) {
+			throw new Error(
+				`vision MCP build failed (npm run build): ${build.stderr || build.error || build.stdout}`,
+			);
 		}
-		actions.push("rebuilt vision MCP dist (npm install && npm run build)");
+		actions.push("rebuilt vision MCP dist (npm run build)");
 	}
 	if (!existsSync(entry)) {
 		throw new Error(`vision MCP entry missing after setup: ${entry}`);
 	}
 
-	// 3. Merge the MCP entry only when no candidate already has a valid one.
+	// 4. Merge the MCP entry only when no candidate already has a valid one.
 	const existingConfig = mcpConfigCandidates(piHome).some((path) => {
 		try {
 			return isValidVisionMcpServer(

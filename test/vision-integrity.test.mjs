@@ -14,11 +14,19 @@ const installPs1 = read("scripts/install.ps1");
 const visionSetup = read("scripts/vision-setup.mjs");
 const visionPackage = read("mcps/vision_mcp/package.json");
 
-// Policy: vision constants + target matcher.
+// Policy: vision constants + target matcher + model-image capability helpers.
 assert.ok(policy.includes('const VISION_MCP_SERVER = "vision"'));
 assert.ok(policy.includes('const VISION_MCP_TARGETS: string[] = ["read_image"]'));
 assert.ok(policy.includes("export function isVisionMcpTarget"));
 assert.ok(policy.includes("(^|[_:])read_image$"));
+// The agent must know its model's image capability before choosing read_image.
+assert.ok(policy.includes("export function modelSupportsImages"));
+assert.ok(policy.includes("export function visionFallbackOnly"));
+assert.ok(policy.includes("export function visionMcpBlockReason"));
+assert.ok(policy.includes("export function modelImageDirective"));
+assert.ok(policy.includes("export function readImageBlockReason"));
+assert.ok(policy.includes("PASEO_VISION_FALLBACK_ONLY"));
+assert.ok(policy.includes("MODEL_IMAGE_READING"));
 
 // Policy: every role gets the `mcp` tool; peer deny keeps mcp_script but
 // drops the bare `mcp` name (the allowlist now carries it).
@@ -39,10 +47,13 @@ assert.ok(policy.includes('deny: [...ALL_PASEO_TOOLS, "mcp_script", "write", "ed
 	}
 }
 
-// Policy: read_image is allowed without a brief grant everywhere.
+// Policy: read_image stays allowed without a brief grant, but vision is a
+// FALLBACK — both peerMcpBlockReason and mcpBlockReason gate it behind the
+// current model's declared image capability (visionMcpBlockReason).
 assert.ok(
-	policy.split("if (isVisionMcpTarget(target)) return null;").length - 1 >= 2,
-	"both peerMcpBlockReason and mcpBlockReason short-circuit vision targets to allowed",
+	policy.split("if (isVisionMcpTarget(target)) return visionMcpBlockReason(model);").length - 1 >=
+		2,
+	"both peerMcpBlockReason and mcpBlockReason gate vision targets behind the model capability",
 );
 assert.ok(policy.includes("export function peerMcpBlockReason"));
 assert.ok(policy.includes("export function mcpBlockReason"));
@@ -61,9 +72,20 @@ for (const [name, prompt] of [
 	assert.ok(prompt.includes("## Vision MCP (đọc image)"), `${name} has the Vision MCP section`);
 	assert.ok(prompt.includes("read_image"), `${name} mentions read_image`);
 	assert.ok(prompt.includes(callForm), `${name} documents the read_image call form`);
+	// Vision is fallback-only: the prompts tell the agent to follow the injected
+	// MODEL_IMAGE_READING directive and use read_image only when the model cannot
+	// read images directly.
+	assert.ok(prompt.includes("MODEL_IMAGE_READING"), `${name} references the model-image directive`);
+	assert.ok(prompt.includes("check-vision-support.mjs"), `${name} points at the verification script`);
 }
 assert.ok(peerPrompt.includes("Không dùng bash để đọc file ảnh thay cho vision MCP"));
 assert.ok(supervisorPrompt.includes("Không dùng `bash` để đọc file ảnh thay cho vision MCP"));
+
+// Verification script exists and probes an OpenAI-compatible endpoint.
+const checkScript = read("scripts/check-vision-support.mjs");
+assert.ok(checkScript.includes("image_url"));
+assert.ok(checkScript.includes("chat/completions"));
+assert.ok(checkScript.includes("VISION_API_KEY"));
 
 // Installers: both call the vision setup script and mention it in output.
 assert.ok(installSh.includes("vision-setup.mjs"));

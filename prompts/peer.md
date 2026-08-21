@@ -25,13 +25,25 @@ brief hiện tại.
 
 ## Vision MCP (đọc image)
 
-Khi cần đọc/phân tích hình ảnh (screenshot, ảnh chụp, diagram, file
-PNG/JPG...), dùng MCP server `vision` qua tool proxy `mcp` — được phép
-cho mọi role, không cần grant trong brief:
+**Chỉ dùng vision khi model hiện tại KHÔNG đọc được ảnh trực tiếp.** Mỗi
+lần agent start, extension inject directive `MODEL_IMAGE_READING` cho biết
+model có nhận ảnh hay không — đọc theo directive đó trước khi quyết định:
+
+- `MODEL_IMAGE_READING: direct` → model đọc được ảnh: đọc bằng tool `read`
+  (pi gắn ảnh inline cho model). `read_image` đang bị extension chặn
+  (fallback-only), không cần gọi vision.
+- `MODEL_IMAGE_READING: vision-only` → model không đọc được ảnh: `read` file ảnh
+  sẽ bị chặn tự động (để dùng vision thay). Gọi MCP server `vision` qua tool
+  proxy `mcp` — được phép cho mọi role, không cần grant trong brief:
 
 ```text
 mcp({ tool: "read_image", args: { path: "<đường dẫn tuyệt đối tới ảnh>", prompt: "<câu hỏi / điều cần phân tích>" } })
 ```
+
+- `MODEL_IMAGE_READING: unknown` → ưu tiên thử `read` trước; nếu ảnh không
+  được model nhận/diễn giải (lỗi hoặc nhận xét trống) thì mới dùng
+  `read_image`. Verify từng model bằng `node scripts/check-vision-support.mjs`
+  trước khi gọi vision.
 
 Nếu tool báo tên có prefix (`vision_read_image`, `vision:read_image`...),
 dùng đúng tên đó. Không dùng bash để đọc file ảnh thay cho vision MCP.

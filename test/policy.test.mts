@@ -14,6 +14,11 @@ import {
 	isSupervisorAllowedMcpTarget,
 	mcpBlockReason,
 	mcpScriptBlockReason,
+	modelImageDirective,
+	modelSupportsImages,
+	readImageBlockReason,
+	visionFallbackOnly,
+	visionMcpBlockReason,
 	parseTaskBrief,
 	peerMcpBlockReason,
 	teamToolBlockReason,
@@ -920,12 +925,15 @@ for (const [code, why] of [
 
 // --- policyFor --------------------------------------------------------------
 
+// Vision MCP is reachable through the `mcp` proxy for every role, so the peer
+// allowlists carry `mcp` (deny keeps only mcp_script). read_image is then gated
+// per-turn by the model capability (see the vision section below).
 const peerRO = policyFor("peer", "read-only");
-assert.deepEqual(peerRO.allow, ["read", "bash", "peer_ask_lead"]);
+assert.deepEqual(peerRO.allow, ["read", "bash", "peer_ask_lead", "mcp"]);
 assert.ok(peerRO.deny.includes("write") && peerRO.deny.includes("edit"));
 assert.ok(
-	peerRO.deny.includes("mcp") && peerRO.deny.includes("mcp_script"),
-	"peer denies the MCP proxy tools",
+	peerRO.deny.includes("mcp_script") && !peerRO.deny.includes("mcp"),
+	"peer deny drops mcp_script but keeps bare mcp (vision read_image)",
 );
 assert.ok(
 	ALL_PASEO_TOOLS.every((t) => peerRO.deny.includes(t)),
@@ -933,14 +941,14 @@ assert.ok(
 );
 
 const peerW = policyFor("peer", "write");
-assert.deepEqual(peerW.allow, ["read", "write", "edit", "bash", "peer_ask_lead"]);
+assert.deepEqual(peerW.allow, ["read", "write", "edit", "bash", "peer_ask_lead", "mcp"]);
 assert.ok(
 	ALL_PASEO_TOOLS.every((t) => peerW.deny.includes(t)),
 	"peer write still denies all paseo tools",
 );
 assert.ok(
-	peerW.deny.includes("mcp") && peerW.deny.includes("mcp_script"),
-	"peer write still denies the MCP proxy tools",
+	peerW.deny.includes("mcp_script") && !peerW.deny.includes("mcp"),
+	"peer write keeps mcp (vision read_image), drops mcp_script",
 );
 assert.ok(!peerW.deny.includes("peer_ask_lead"), "peer communication remains available in write mode");
 
@@ -991,6 +999,120 @@ assert.ok(
 	sup.deny.includes("mcp_script"),
 	"supervisor mcp_script is denied outright (dynamic dispatch unverifiable)",
 );
+
+// --- Vision MCP fallback-only: model image capability gating -----------------
+
+{
+	assert.equal(modelSupportsImages({ input: ["text", "image"] }), true);
+	assert.equal(modelSupportsImages({ input: ["text"] }), false);
+	assert.equal(modelSupportsImages({ input: [] }), undefined);
+	assert.equal(modelSupportsImages({}), undefined);
+	assert.equal(modelSupportsImages(undefined), undefined);
+	assert.equal(modelSupportsImages({ input: "image" }), undefined);
+}
+
+{
+	const prev = process.env.PASEO_VISION_FALLBACK_ONLY;
+	try {
+		delete process.env.PASEO_VISION_FALLBACK_ONLY;
+		assert.equal(visionFallbackOnly(), true, "fallback-only is the default");
+		process.env.PASEO_VISION_FALLBACK_ONLY = "0";
+		assert.equal(visionFallbackOnly(), false);
+		process.env.PASEO_VISION_FALLBACK_ONLY = "false";
+		assert.equal(visionFallbackOnly(), false);
+		process.env.PASEO_VISION_FALLBACK_ONLY = "no";
+		assert.equal(visionFallbackOnly(), false);
+		process.env.PASEO_VISION_FALLBACK_ONLY = "1";
+		assert.equal(visionFallbackOnly(), true);
+	} finally {
+		if (prev === undefined) delete process.env.PASEO_VISION_FALLBACK_ONLY;
+		else process.env.PASEO_VISION_FALLBACK_ONLY = prev;
+	}
+}
+
+{
+	const prev = process.env.PASEO_VISION_FALLBACK_ONLY;
+	try {
+		delete process.env.PASEO_VISION_FALLBACK_ONLY;
+		// Image-capable model + fallback-only default → read_image is blocked.
+		assert.ok(
+			(visionMcpBlockReason({ input: ["text", "image"] }) ?? "").includes("MODEL_IMAGE_READING"),
+		);
+		// Text-only / unknown model → vision fallback stays open.
+		assert.equal(visionMcpBlockReason({ input: ["text"] }), null);
+		assert.equal(visionMcpBlockReason(undefined), null);
+		// Opting out re-allows read_image for image-capable models.
+		process.env.PASEO_VISION_FALLBACK_ONLY = "0";
+		assert.equal(visionMcpBlockReason({ input: ["text", "image"] }), null);
+	} finally {
+		if (prev === undefined) delete process.env.PASEO_VISION_FALLBACK_ONLY;
+		else process.env.PASEO_VISION_FALLBACK_ONLY = prev;
+	}
+}
+
+{
+	assert.match(modelImageDirective({ input: ["text", "image"] }), /direct/);
+	assert.match(modelImageDirective({ input: ["text"] }), /vision-only/);
+	assert.match(modelImageDirective(undefined), /unknown/);
+}
+
+{
+	const prev = process.env.PASEO_VISION_FALLBACK_ONLY;
+	try {
+		delete process.env.PASEO_VISION_FALLBACK_ONLY;
+		const visionTarget = { tool: "read_image" };
+		// Lead: image-capable model blocks read_image (fallback-only)…
+		assert.ok(
+			(mcpBlockReason("lead", visionTarget, { input: ["text", "image"] }) ?? "")
+				.includes("MODEL_IMAGE_READING"),
+		);
+		// …text-only or unknown model keeps the vision fallback open…
+		assert.equal(mcpBlockReason("lead", visionTarget, { input: ["text"] }), null);
+		assert.equal(mcpBlockReason("lead", visionTarget, undefined), null);
+		// …and no model passed preserves the previous always-allowed behavior.
+		assert.equal(mcpBlockReason("lead", visionTarget), null);
+		// Peer gating mirrors it.
+		assert.ok(
+			(peerMcpBlockReason(visionTarget, null, { input: ["text", "image"] }) ?? "")
+				.includes("MODEL_IMAGE_READING"),
+		);
+		assert.equal(peerMcpBlockReason(visionTarget, null, { input: ["text"] }), null);
+		assert.equal(peerMcpBlockReason(visionTarget, null), null);
+		// mcp_script backstop also respects the gate.
+		assert.ok(
+			(mcpScriptBlockReason("lead", "await tools.read_image({});", {
+				input: ["text", "image"],
+			}) ?? "").includes("MODEL_IMAGE_READING"),
+		);
+		assert.equal(
+			mcpScriptBlockReason("lead", "await tools.read_image({});", {
+				input: ["text"],
+			}),
+			null,
+		);
+	} finally {
+		if (prev === undefined) delete process.env.PASEO_VISION_FALLBACK_ONLY;
+		else process.env.PASEO_VISION_FALLBACK_ONLY = prev;
+	}
+}
+
+{
+	// Automatic fallback: `read` of a raster image is blocked for a text-only
+	// model so the turn goes through the vision MCP instead.
+	assert.ok(
+		(readImageBlockReason({ input: ["text"] }, "/tmp/shot.png") ?? "").includes("MODEL_IMAGE_READING"),
+	);
+	assert.ok(
+		(readImageBlockReason({ input: ["text"] }, "C:\\Users\\me\\img.JPG") ?? "").includes("read_image"),
+	);
+	// Image-capable model → read is fine.
+	assert.equal(readImageBlockReason({ input: ["text", "image"] }, "/tmp/shot.png"), null);
+	// Unknown capability → permissive (try read, fall back manually).
+	assert.equal(readImageBlockReason(undefined, "/tmp/shot.png"), null);
+	// Non-image files and SVG (text markup) are never blocked.
+	assert.equal(readImageBlockReason({ input: ["text"] }, "/tmp/notes.md"), null);
+	assert.equal(readImageBlockReason({ input: ["text"] }, "/tmp/vector.svg"), null);
+}
 
 // --- policyWithAuthority (edit denial enforcement) ---------------------------
 
@@ -1046,8 +1168,8 @@ assert.match(
 	denyReason("supervisor", "read-only", "create_agent"),
 	/observation/,
 );
-assert.match(denyReason("peer", "read-only", "mcp"), /MCP proxy/);
-assert.match(denyReason("peer", "write", "mcp_script"), /MCP proxy/);
+assert.match(denyReason("peer", "read-only", "mcp"), /Peer MCP is limited/);
+assert.match(denyReason("peer", "write", "mcp_script"), /DEPENDENCY_REQUEST/);
 assert.match(teamToolBlockReason("lead", "peer_ask_lead", null) ?? "", /restricted/);
 assert.match(teamToolBlockReason("peer", "peer_ask_lead", null) ?? "", /valid current V3/);
 assert.equal(teamToolBlockReason("peer", "peer_ask_lead", parseTaskBrief(v3WriteBrief)), null);

@@ -54,6 +54,7 @@ TEAM_SUPPORT_FILES=(
   remote-paseo.mjs
   model-routing.mjs
   team-scripts-path.mjs
+  check-vision-support.mjs
 )
 
 mkdir -p "$EXT_DIR" "$PROMPT_DIR" "$SKILLS_DIR"
