@@ -1,0 +1,735 @@
+{
+  "version": 1,
+  "daemon": {
+    "listen": "127.0.0.1:6767",
+    "mcp": {
+      "injectIntoAgents": true,
+      "injectIntoProviders": [
+        "pi-supervisor",
+        "pi-lead",
+        "pi-peer"
+      ]
+    },
+    "autoArchiveAfterMerge": false,
+    "enableTerminalAgentHooks": false,
+    "appendSystemPrompt": "",
+    "cors": {
+      "allowedOrigins": [
+        "https://app.paseo.sh"
+      ]
+    },
+    "relay": {
+      "enabled": true
+    }
+  },
+  "app": {
+    "baseUrl": "https://app.paseo.sh"
+  },
+  "agents": {
+    "providers": {
+      "pi": {
+        "enabled": true
+      },
+      "pi-supervisor": {
+        "extends": "pi",
+        "label": "Pi Supervisor",
+        "env": {
+          "PASEO_PI_ROLE": "supervisor"
+        },
+        "models": [
+          {
+            "id": "new-api/gpt-5.6-luna",
+            "label": "GPT-5.6 Luna",
+            "isDefault": true,
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "minimal",
+                "label": "Minimal"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "XHigh"
+              },
+              {
+                "id": "max",
+                "label": "Max",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "id": "new-api/deepseek-v4-flash-vision-exp",
+            "label": "DeepSeek V4 Flash Vision Experimental",
+            "isDefault": true,
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "minimal",
+                "label": "Minimal"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "XHigh"
+              },
+              {
+                "id": "max",
+                "label": "Max",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "id": "new-api/mimo-v2.5",
+            "label": "Mimo V2.5",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "id": "new-api/hy3",
+            "label": "Hy3",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "minimal",
+                "label": "Minimal"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High",
+                "isDefault": true
+              },
+              {
+                "id": "xhigh",
+                "label": "XHigh"
+              },
+              {
+                "id": "max",
+                "label": "Max"
+              }
+            ]
+          },
+          {
+            "id": "new-api/glm-5.3",
+            "label": "GLM-5.3",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "XHigh"
+              },
+              {
+                "id": "max",
+                "label": "Max",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "id": "new-api/glm-5.3-flash",
+            "label": "GLM-5.3 Flash",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "max",
+                "label": "Max",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "id": "new-api/longcat-2.0",
+            "label": "LongCat 2.0",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off",
+                "isDefault": true
+              },
+              {
+                "id": "minimal",
+                "label": "Minimal"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "XHigh"
+              },
+              {
+                "id": "max",
+                "label": "Max"
+              }
+            ]
+          }
+        ]
+      },
+      "pi-lead": {
+        "extends": "pi",
+        "label": "Pi Lead",
+        "env": {
+          "PASEO_PI_ROLE": "lead"
+        },
+        "models": [
+          {
+            "id": "new-api/gpt-5.6-luna",
+            "label": "GPT-5.6 Luna",
+            "isDefault": true,
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "minimal",
+                "label": "Minimal"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "XHigh"
+              },
+              {
+                "id": "max",
+                "label": "Max",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "id": "new-api/deepseek-v4-flash-vision-exp",
+            "label": "DeepSeek V4 Flash Vision Experimental",
+            "isDefault": true,
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "minimal",
+                "label": "Minimal"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "XHigh"
+              },
+              {
+                "id": "max",
+                "label": "Max",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "id": "new-api/mimo-v2.5",
+            "label": "Mimo V2.5",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "id": "new-api/hy3",
+            "label": "Hy3",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "minimal",
+                "label": "Minimal"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High",
+                "isDefault": true
+              },
+              {
+                "id": "xhigh",
+                "label": "XHigh"
+              },
+              {
+                "id": "max",
+                "label": "Max"
+              }
+            ]
+          },
+          {
+            "id": "new-api/glm-5.3",
+            "label": "GLM-5.3",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "XHigh"
+              },
+              {
+                "id": "max",
+                "label": "Max",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "id": "new-api/glm-5.3-flash",
+            "label": "GLM-5.3 Flash",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "max",
+                "label": "Max",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "id": "new-api/longcat-2.0",
+            "label": "LongCat 2.0",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off",
+                "isDefault": true
+              },
+              {
+                "id": "minimal",
+                "label": "Minimal"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "XHigh"
+              },
+              {
+                "id": "max",
+                "label": "Max"
+              }
+            ]
+          }
+        ]
+      },
+      "pi-peer": {
+        "extends": "pi",
+        "label": "Pi Peer",
+        "env": {
+          "PASEO_PI_ROLE": "peer"
+        },
+        "models": [
+          {
+            "id": "new-api/gpt-5.6-luna",
+            "label": "GPT-5.6 Luna",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "minimal",
+                "label": "Minimal"
+              },
+              {
+                "id": "low",
+                "label": "Low",
+                "isDefault": true
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "XHigh"
+              },
+              {
+                "id": "max",
+                "label": "Max"
+              }
+            ]
+          },
+          {
+            "id": "new-api/deepseek-v4-flash-vision-exp",
+            "label": "DeepSeek V4 Flash Vision Experimental",
+            "isDefault": true,
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "minimal",
+                "label": "Minimal"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "XHigh"
+              },
+              {
+                "id": "max",
+                "label": "Max",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "id": "new-api/mimo-v2.5",
+            "label": "Mimo V2.5",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "id": "new-api/hy3",
+            "label": "Hy3",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "minimal",
+                "label": "Minimal"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High",
+                "isDefault": true
+              },
+              {
+                "id": "xhigh",
+                "label": "XHigh"
+              },
+              {
+                "id": "max",
+                "label": "Max"
+              }
+            ]
+          },
+          {
+            "id": "new-api/glm-5.3",
+            "label": "GLM-5.3",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "XHigh"
+              },
+              {
+                "id": "max",
+                "label": "Max",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "id": "new-api/glm-5.3-flash",
+            "label": "GLM-5.3 Flash",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "max",
+                "label": "Max",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "id": "new-api/longcat-2.0",
+            "label": "LongCat 2.0",
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off",
+                "isDefault": true
+              },
+              {
+                "id": "minimal",
+                "label": "Minimal"
+              },
+              {
+                "id": "low",
+                "label": "Low"
+              },
+              {
+                "id": "medium",
+                "label": "Medium"
+              },
+              {
+                "id": "high",
+                "label": "High"
+              },
+              {
+                "id": "xhigh",
+                "label": "XHigh"
+              },
+              {
+                "id": "max",
+                "label": "Max"
+              }
+            ]
+          }
+        ]
+      },
+      "copilot": {
+        "enabled": false
+      },
+      "codex": {
+        "enabled": false
+      },
+      "claude": {
+        "enabled": false
+      }
+    }
+  },
+  "features": {
+    "dictation": {
+      "enabled": false
+    },
+    "voiceMode": {
+      "enabled": false
+    }
+  }
+}
