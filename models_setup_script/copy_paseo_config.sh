@@ -7,9 +7,21 @@
 #
 set -euo pipefail
 
-# Source folders
-SRC_PASEO="./paseo-pi-team"
-SRC_CONFIG="./paseo/config.json"
+# Xác định thư mục chứa script này → chạy từ bất kỳ đâu (máy nào cũng được)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# In-place sed portability: macOS = "sed -i ''", Linux = "sed -i"
+sedi() {
+  if sed --version >/dev/null 2>&1; then
+    sed -i "$@"
+  else
+    sed -i '' "$@"
+  fi
+}
+
+# Source folders (luôn tính từ vị trí script, không phụ thuộc cwd)
+SRC_PASEO="$SCRIPT_DIR/paseo-pi-team"
+SRC_CONFIG="$SCRIPT_DIR/paseo/config.json"
 
 # Destination folders
 DEST_PASEO="${HOME}/.paseo-pi-team"
@@ -53,7 +65,7 @@ done
 # Tự động thay hostId bằng hostname thật của máy trong model-routing.local.json
 MODEL_ROUTING="$DEST_PASEO/model-routing.local.json"
 if [ -f "$MODEL_ROUTING" ]; then
-  if sed -i '' "s/\"hostId\": *\"[^\"]*\"/\"hostId\": \"$HOST_ID\"/" "$MODEL_ROUTING"; then
+  if sedi "s/\"hostId\": *\"[^\"]*\"/\"hostId\": \"$HOST_ID\"/" "$MODEL_ROUTING"; then
     echo "   🔧 Đã set hostId = $HOST_ID trong $(basename "$MODEL_ROUTING")"
   fi
 fi

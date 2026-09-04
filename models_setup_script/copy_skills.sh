@@ -5,8 +5,11 @@
 #
 set -euo pipefail
 
-# Source folder (skill gốc)
-SRC="./skills"
+# Xác định thư mục chứa script này → chạy từ bất kỳ đâu (máy nào cũng được)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source folder (skill gốc) — luôn tính từ vị trí script, không phụ thuộc cwd
+SRC="$SCRIPT_DIR/skills"
 
 # Destination folder (skill đích)
 DEST="${HOME}/.pi/agent/skills"
