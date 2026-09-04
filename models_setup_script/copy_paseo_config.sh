@@ -8,8 +8,8 @@
 set -euo pipefail
 
 # Source folders
-SRC_PASEO="/Users/longphamdev/Codespaces/paseo-pi-team/models_setup_script/paseo-pi-team"
-SRC_CONFIG="/Users/longphamdev/Codespaces/paseo-pi-team/models_setup_script/paseo/config.json"
+SRC_PASEO="./models_setup_script/paseo-pi-team"
+SRC_CONFIG="./models_setup_script/paseo/config.json"
 
 # Destination folders
 DEST_PASEO="${HOME}/.paseo-pi-team"
