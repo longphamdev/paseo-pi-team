@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # copy_paseo_config.sh
-# 1) Copy toàn bộ nội dung folder paseo-pi-team vào ~/.paseo-pi-team
-#    - tự động thay hostId bằng hostname thật của máy chạy script
-# 2) Copy paseo/config.json vào ~/.paseo/config.json
+# Copy cấu hình paseo-pi-team vào ~/.paseo-pi-team và ~/.paseo.
+# Mọi nội dung (routes, hosts, capabilities...) được GIỮ NGUYÊN;
+# script CHỈ thay hostId bằng hostname thật của máy chạy script.
 #
 set -euo pipefail
 
@@ -19,24 +19,33 @@ sedi() {
   fi
 }
 
-# Source folders (luôn tính từ vị trí script, không phụ thuộc cwd)
+# Source: base template được commit trong repo (KHÔNG phải *.local.json
+# nên không bị .gitignore loại). Script copy sang *.local.json và chỉ thế hostId.
 SRC_PASEO="$SCRIPT_DIR/paseo-pi-team"
+SRC_MODEL_ROUTING="$SRC_PASEO/model-routing.json"
+SRC_CLUSTER_ROUTING="$SRC_PASEO/cluster-routing.json"
 SRC_CONFIG="$SCRIPT_DIR/paseo/config.json"
 
 # Destination folders
 DEST_PASEO="${HOME}/.paseo-pi-team"
+DEST_MODEL_ROUTING="$DEST_PASEO/model-routing.local.json"
+DEST_CLUSTER_ROUTING="$DEST_PASEO/cluster-routing.local.json"
 DEST_PASEO_DIR="${HOME}/.paseo"
 
 # Hostname thật của máy (short form, không có .local)
 HOST_ID="$(hostname -s)"
 
 # --- Kiểm tra source ---
-if [ ! -d "$SRC_PASEO" ]; then
-  echo "❌ Source folder không tồn tại: $SRC_PASEO" >&2
+if [ ! -f "$SRC_MODEL_ROUTING" ]; then
+  echo "❌ Thiếu source: $SRC_MODEL_ROUTING" >&2
+  exit 1
+fi
+if [ ! -f "$SRC_CLUSTER_ROUTING" ]; then
+  echo "❌ Thiếu source: $SRC_CLUSTER_ROUTING" >&2
   exit 1
 fi
 if [ ! -f "$SRC_CONFIG" ]; then
-  echo "❌ Source config không tồn tại: $SRC_CONFIG" >&2
+  echo "❌ Thiếu source: $SRC_CONFIG" >&2
   exit 1
 fi
 
@@ -47,27 +56,20 @@ mkdir -p "$DEST_PASEO_DIR"
 echo "🖥️  Hostname phát hiện: $HOST_ID"
 echo
 
-# --- (1) Copy paseo-pi-team config ---
-echo "📂 Copy paseo-pi-team config từ:"
+# --- (1) Copy paseo-pi-team routing (giữ nguyên mọi thứ, CHỈ thay hostId) ---
+echo "📂 Copy paseo-pi-team config:"
 echo "   $SRC_PASEO"
 echo "   → $DEST_PASEO"
 echo
 
-copied=0
-for item in "$SRC_PASEO"/*; do
-  [ -e "$item" ] || continue
-  name="$(basename "$item")"
-  cp -R "$item" "$DEST_PASEO/"
-  echo "   ✅ $name"
-  copied=$((copied + 1))
-done
+cp "$SRC_MODEL_ROUTING" "$DEST_MODEL_ROUTING"
+echo "   ✅ model-routing.local.json"
+cp "$SRC_CLUSTER_ROUTING" "$DEST_CLUSTER_ROUTING"
+echo "   ✅ cluster-routing.local.json"
 
-# Tự động thay hostId bằng hostname thật của máy trong model-routing.local.json
-MODEL_ROUTING="$DEST_PASEO/model-routing.local.json"
-if [ -f "$MODEL_ROUTING" ]; then
-  if sedi "s/\"hostId\": *\"[^\"]*\"/\"hostId\": \"$HOST_ID\"/" "$MODEL_ROUTING"; then
-    echo "   🔧 Đã set hostId = $HOST_ID trong $(basename "$MODEL_ROUTING")"
-  fi
+# CHỈ thay hostId, giữ nguyên routes / hosts / capabilities ...
+if sedi "s/\"hostId\": *\"[^\"]*\"/\"hostId\": \"$HOST_ID\"/" "$DEST_MODEL_ROUTING"; then
+  echo "   🔧 Đã set hostId = $HOST_ID trong model-routing.local.json"
 fi
 
 echo
@@ -80,4 +82,4 @@ cp "$SRC_CONFIG" "$DEST_PASEO_DIR/config.json"
 echo "   ✅ config.json"
 echo
 
-echo "🎉 Hoàn tất: $copied item(s) vào $DEST_PASEO + config.json vào $DEST_PASEO_DIR"
+echo "🎉 Hoàn tất: routing config vào $DEST_PASEO + config.json vào $DEST_PASEO_DIR"

@@ -1,0 +1,19 @@
+{
+  "$comment": "BASE template committed at models_setup_script/paseo-pi-team/cluster-routing.json. copy_paseo_config.sh copies this to ~/.paseo-pi-team/cluster-routing.local.json (hostId is not used here; it lives in model-routing.local.json). Edit the live .local.json per controller host. Endpoint VALUES live ONLY in env vars referenced by NAME via 'endpointEnv' — never inside this file. Add one entry per host under 'hosts'.",
+  "version": 1,
+  "hosts": {
+    "primary": {
+      "connection": { "type": "local" },
+      "required": true,
+      "capabilities": ["git-read", "git-write", "focused-test", "docker", "integration-test"],
+      "limits": { "writers": 1, "readers": 3 },
+      "routes": {
+        "MONITOR_ECONOMY": { "paseoProvider": "pi-supervisor", "model": "new-api/hy3", "thinking": "off" },
+        "FAST_READ": { "paseoProvider": "pi-peer", "model": "new-api/hy3", "thinking": "low" },
+        "CODING_MEDIUM": { "paseoProvider": "pi-peer", "model": "new-api/hy3", "thinking": "off" },
+        "REASONING_HIGH": { "paseoProvider": "pi-peer", "model": "new-api/deepseek-v4-flash-vision-exp", "thinking": "high" },
+        "REVIEW_HIGH": { "paseoProvider": "pi-peer", "model": "new-api/deepseek-v4-flash-vision-exp", "thinking": "high" }
+      }
+    }
+  }
+}

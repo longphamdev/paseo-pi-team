@@ -1,0 +1,12 @@
+{
+  "$comment": "BASE template committed at models_setup_script/paseo-pi-team/model-routing.json. copy_paseo_config.sh copies this to ~/.paseo-pi-team/model-routing.local.json and sets hostId to the machine hostname (everything else kept verbatim). Edit the live .local.json per host. Endpoint VALUES live ONLY in env vars referenced by NAME via 'endpointEnv' — never inside this file. Run 'pteam models' on each host to list what every role provider offers. Route shapes: pi = '<pi-provider>/<model-id>' with thinking ∈ off|minimal|low|medium|high|xhigh|max.",
+  "version": 1,
+  "hostId": "__HOST_ID__",
+  "routes": {
+    "MONITOR_ECONOMY": { "paseoProvider": "pi-supervisor", "model": "new-api/hy3", "thinking": "off" },
+    "FAST_READ": { "paseoProvider": "pi-peer", "model": "new-api/hy3", "thinking": "low" },
+    "CODING_MEDIUM": { "paseoProvider": "pi-peer", "model": "new-api/hy3", "thinking": "off" },
+    "REASONING_HIGH": { "paseoProvider": "pi-peer", "model": "new-api/deepseek-v4-flash-vision-exp", "thinking": "high" },
+    "REVIEW_HIGH": { "paseoProvider": "pi-peer", "model": "new-api/deepseek-v4-flash-vision-exp", "thinking": "high" }
+  }
+}
