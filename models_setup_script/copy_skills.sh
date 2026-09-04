@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # Source folder (skill gốc)
-SRC="./models_setup_script/skills"
+SRC="./skills"
 
 # Destination folder (skill đích)
 DEST="${HOME}/.pi/agent/skills"
